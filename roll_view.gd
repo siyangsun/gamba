@@ -44,6 +44,7 @@ func _ready() -> void:
 	vb.add_child(back)
 
 	_title = Label.new()
+	_title.theme_type_variation = "Header"
 	_title.add_theme_font_size_override("font_size", 24)
 	vb.add_child(_title)
 

@@ -91,10 +91,33 @@ func _add_box(world: Node3D, pos: Vector3, size: Vector3, col: Color, visible: b
 		mi.mesh = bm
 		var m := StandardMaterial3D.new()
 		m.albedo_color = col
-		m.roughness = 1.0
+		m.roughness = 0.55
+		m.normal_enabled = true
+		m.normal_texture = _pleather_normal_map()
+		m.normal_scale = 1.4
+		m.uv1_scale = Vector3(size.x, size.z, 1.0)
 		mi.material_override = m
 		sb.add_child(mi)
 	world.add_child(sb)
+
+
+## Procedural bump map (grainy, pock-marked) so the board reads as
+## rubber/pleather instead of a flat color, with no texture asset needed.
+func _pleather_normal_map() -> NoiseTexture2D:
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_CELLULAR
+	noise.frequency = 0.15
+	noise.cellular_jitter = 1.0
+	noise.fractal_octaves = 2
+
+	var tex := NoiseTexture2D.new()
+	tex.width = 256
+	tex.height = 256
+	tex.seamless = true
+	tex.as_normal_map = true
+	tex.bump_strength = 3.0
+	tex.noise = noise
+	return tex
 
 
 func _on_view_input(event: InputEvent) -> void:
@@ -225,6 +248,11 @@ func _build_theme() -> Theme:
 	t.set_stylebox("focus", "LineEdit", _flat(Color.WHITE, Color8(0, 84, 227), 2))
 
 	t.set_color("font_color", "Label", Color8(30, 28, 20))
+
+	# header font: ornate display serif for page titles only
+	t.set_type_variation("Header", "Label")
+	t.set_font("font", "Header", load("res://fonts/CinzelDecorative-Bold.ttf"))
+
 	return t
 
 

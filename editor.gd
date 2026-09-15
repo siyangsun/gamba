@@ -32,6 +32,7 @@ func _ready() -> void:
 
 	var title := Label.new()
 	title.text = "Assign the Faces"
+	title.theme_type_variation = "Header"
 	title.add_theme_font_size_override("font_size", 26)
 	vb.add_child(title)
 

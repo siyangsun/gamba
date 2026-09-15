@@ -37,6 +37,7 @@ func _ready() -> void:
 
 	var title := Label.new()
 	title.text = "The Dice Shelf"
+	title.theme_type_variation = "Header"
 	title.add_theme_font_size_override("font_size", 30)
 	vb.add_child(title)
 
