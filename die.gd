@@ -73,7 +73,7 @@ func _build_faces() -> void:
 		q.size = Vector2(SIZE, SIZE) * 0.99
 		mi.mesh = q
 		var mat := StandardMaterial3D.new()
-		mat.albedo_texture = _make_face_texture(int(d.v))
+		mat.albedo_texture = make_face_texture(int(d.v), FACE_TEX)
 		mat.roughness = 0.8
 		mi.material_override = mat
 		mi.position = (d.n as Vector3) * (half + 0.002)
@@ -83,31 +83,33 @@ func _build_faces() -> void:
 		_faces.append({"v": int(d.v), "n": d.n})
 
 
-func _make_face_texture(value: int) -> ImageTexture:
-	var img := Image.create(FACE_TEX, FACE_TEX, false, Image.FORMAT_RGB8)
+## Renders one die face (ivory grain + pips) at the given texture size.
+## Shared with ShelfPanel, which uses it at a smaller size for shelf icons.
+static func make_face_texture(value: int, tex_size: int) -> ImageTexture:
+	var img := Image.create(tex_size, tex_size, false, Image.FORMAT_RGB8)
 	var ivory := Color(0.90, 0.86, 0.75)
 	# faux-physical grain
-	for y in FACE_TEX:
-		for x in FACE_TEX:
+	for y in tex_size:
+		for x in tex_size:
 			var n := randf() * 0.06 - 0.03
 			img.set_pixel(x, y, Color(
 				clampf(ivory.r + n, 0, 1),
 				clampf(ivory.g + n, 0, 1),
 				clampf(ivory.b + n, 0, 1)))
 	var pip := Color(0.09, 0.08, 0.07)
-	var radius := FACE_TEX / 9.0
+	var radius := tex_size / 9.0
 	for g: Vector2 in PIP_LAYOUT[value]:
-		var cx: float = FACE_TEX * (0.25 + 0.25 * g.x)
-		var cy: float = FACE_TEX * (0.25 + 0.25 * g.y)
-		_fill_circle(img, cx, cy, radius, pip)
+		var cx: float = tex_size * (0.25 + 0.25 * g.x)
+		var cy: float = tex_size * (0.25 + 0.25 * g.y)
+		_fill_circle(tex_size, img, cx, cy, radius, pip)
 	return ImageTexture.create_from_image(img)
 
 
-func _fill_circle(img: Image, cx: float, cy: float, r: float, col: Color) -> void:
+static func _fill_circle(tex_size: int, img: Image, cx: float, cy: float, r: float, col: Color) -> void:
 	var y0 := maxi(0, int(cy - r - 1))
-	var y1 := mini(FACE_TEX, int(cy + r + 2))
+	var y1 := mini(tex_size, int(cy + r + 2))
 	var x0 := maxi(0, int(cx - r - 1))
-	var x1 := mini(FACE_TEX, int(cx + r + 2))
+	var x1 := mini(tex_size, int(cx + r + 2))
 	for y in range(y0, y1):
 		for x in range(x0, x1):
 			if Vector2(x - cx, y - cy).length() <= r:

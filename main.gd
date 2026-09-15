@@ -29,7 +29,7 @@ func _ready() -> void:
 func _build_3d() -> void:
 	_vpc = SubViewportContainer.new()
 	_vpc.stretch = true
-	_vpc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_vpc.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_vpc.mouse_filter = Control.MOUSE_FILTER_STOP
 	_vpc.gui_input.connect(_on_view_input)
 	add_child(_vpc)
@@ -117,6 +117,7 @@ func _build_panels() -> void:
 	_shelf = ShelfPanel.new()
 	_shelf.new_die_requested.connect(_go_editor_new)
 	_shelf.preset_chosen.connect(_go_roll)
+	_shelf.preset_delete_requested.connect(_on_delete_preset)
 	add_child(_shelf)
 
 	_editor = EditorPanel.new()
@@ -126,6 +127,7 @@ func _build_panels() -> void:
 
 	_roll = RollView.new()
 	_roll.back_requested.connect(_go_shelf)
+	_roll.delete_requested.connect(_on_delete_preset)
 	add_child(_roll)
 
 
@@ -156,6 +158,12 @@ func _set_visible(shelf: bool, editor: bool, roll: bool) -> void:
 
 func _on_saved(preset: DicePreset) -> void:
 	_save_preset(preset)
+	_go_shelf()
+
+
+func _on_delete_preset(preset: DicePreset) -> void:
+	if preset.resource_path != "":
+		DirAccess.remove_absolute(preset.resource_path)
 	_go_shelf()
 
 

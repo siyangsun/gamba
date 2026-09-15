@@ -5,6 +5,7 @@ class_name RollView
 ## a side panel shows the result and the full face legend.
 
 signal back_requested
+signal delete_requested(preset: DicePreset)
 
 var _preset: DicePreset
 var _title: Label
@@ -13,7 +14,7 @@ var _legend: VBoxContainer
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE  # let clicks fall through to the die
 
 	var side := PanelContainer.new()
@@ -64,6 +65,13 @@ func _ready() -> void:
 	_legend = VBoxContainer.new()
 	vb.add_child(_legend)
 
+	vb.add_child(HSeparator.new())
+
+	var delete_btn := Button.new()
+	delete_btn.text = "Delete Die"
+	delete_btn.pressed.connect(_confirm_delete)
+	vb.add_child(delete_btn)
+
 
 func set_preset(p: DicePreset) -> void:
 	_preset = p
@@ -75,6 +83,16 @@ func set_preset(p: DicePreset) -> void:
 		var l := Label.new()
 		l.text = "%d  —  %s" % [i + 1, _face_text(i + 1)]
 		_legend.add_child(l)
+
+
+func _confirm_delete() -> void:
+	var dlg := ConfirmationDialog.new()
+	dlg.dialog_text = "Delete \"%s\"? This can't be undone." % _preset.name
+	dlg.confirmed.connect(func(): delete_requested.emit(_preset))
+	dlg.confirmed.connect(dlg.queue_free)
+	dlg.canceled.connect(dlg.queue_free)
+	add_child(dlg)
+	dlg.popup_centered()
 
 
 func clear_result() -> void:
