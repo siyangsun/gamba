@@ -47,6 +47,7 @@ func _ready() -> void:
 	_title = Label.new()
 	_title.theme_type_variation = "Header"
 	_title.add_theme_font_size_override("font_size", 24)
+	_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(_title)
 
 	var hint := Label.new()
@@ -89,6 +90,7 @@ func set_preset(p: DicePreset) -> void:
 	for i in 6:
 		var l := Label.new()
 		l.text = "%d  —  %s" % [i + 1, _face_text(i + 1)]
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_legend.add_child(l)
 
 
