@@ -265,7 +265,10 @@ func _load_presets() -> Array:
 		return out
 	for f in d.get_files():
 		if f.ends_with(".tres"):
-			var r = ResourceLoader.load("%s/%s" % [PRESET_DIR, f])
+			# CACHE_MODE_REPLACE: without it, re-saving a preset mid-session
+			# (e.g. editing) still returns the stale pre-edit object here.
+			var r = ResourceLoader.load(
+				"%s/%s" % [PRESET_DIR, f], "", ResourceLoader.CACHE_MODE_REPLACE)
 			if r is DicePreset:
 				out.append(r)
 	return out
