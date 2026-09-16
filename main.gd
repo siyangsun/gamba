@@ -376,13 +376,19 @@ func _set_visible(shelf: bool, editor: bool, roll: bool) -> void:
 
 
 func _on_saved(preset: DicePreset) -> void:
+	var was_editing := _editing_path != ""
 	# a rename during edit changes the slug; drop the old file so it isn't orphaned
 	var new_path := "%s/%s.tres" % [PRESET_DIR, _slug(preset.name)]
 	if _editing_path != "" and _editing_path != new_path:
 		DirAccess.remove_absolute(_editing_path)
 	_editing_path = ""
 	_save_preset(preset)
-	_go_shelf()
+	# editing an existing die returns to rolling it, not all the way back to
+	# the shelf; only a brand-new die (made from the shelf) lands on the shelf
+	if was_editing:
+		_go_roll(preset)
+	else:
+		_go_shelf()
 
 
 func _on_delete_preset(preset: DicePreset) -> void:
