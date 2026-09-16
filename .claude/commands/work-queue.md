@@ -1,9 +1,9 @@
 ---
-description: Implement the next unchecked item(s) in work-queue.md, committing each as you go
+description: Implement the next unchecked item(s) in roadmap.md, committing each as you go
 argument-hint: [count]
 ---
 
-Read `work-queue.md` at the repo root. Find the first unchecked item (`- [ ] ...`).
+Read `roadmap.md` at the repo root. Find the first unchecked item (`- [ ] ...`).
 
 For that one item:
 1. Implement only that change — nothing else, no adjacent cleanup, no scope creep.
@@ -12,7 +12,7 @@ For that one item:
    - An entry phrased as a problem/bug report ("light gray text doesn't read well") means: write the commit message as the fix that was applied (e.g. `fix: darken light gray text for readability`), not as the complaint.
    - An entry already phrased as a directive (a clear feat/fix/chore instruction) can keep its wording close to as-is.
    The commit message should read as a description of a completed change, never as an open question or a restated problem.
-3. Check the box for that item in `work-queue.md` (`- [ ]` → `- [x]`).
+3. Check the box for that item in `roadmap.md` (`- [ ]` → `- [x]`).
 4. Commit the checkbox update too — folding it into the same commit as the implementation is fine and preferred when it's a single small change.
 
 Arguments: $ARGUMENTS
