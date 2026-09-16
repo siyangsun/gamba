@@ -7,7 +7,11 @@ Read `work-queue.md` at the repo root. Find the first unchecked item (`- [ ] ...
 
 For that one item:
 1. Implement only that change — nothing else, no adjacent cleanup, no scope creep.
-2. Commit it with a message matching the task text (trim the `type:` prefix if it reads awkwardly as a commit subject, but keep the substance).
+2. Commit it with a message that keeps the task's prefix (`chore:`, `feat:`, `fix:`, etc.) but is written from the task list, not copied from it verbatim. Some entries are phrased as investigations ("check if...") or as a bug/problem description rather than the fix — resolve that phrasing before it becomes a commit message:
+   - An entry phrased as a question or investigation ("check if we need to delete X") means: go investigate, decide, and act — then write the commit message as what you actually did or found (e.g. `chore: remove unused godot import metadata`, or `chore: confirm godot import metadata is all in use` if nothing needed removing), not as the original open question.
+   - An entry phrased as a problem/bug report ("light gray text doesn't read well") means: write the commit message as the fix that was applied (e.g. `fix: darken light gray text for readability`), not as the complaint.
+   - An entry already phrased as a directive (a clear feat/fix/chore instruction) can keep its wording close to as-is.
+   The commit message should read as a description of a completed change, never as an open question or a restated problem.
 3. Check the box for that item in `work-queue.md` (`- [ ]` → `- [x]`).
 4. Commit the checkbox update too — folding it into the same commit as the implementation is fine and preferred when it's a single small change.
 
