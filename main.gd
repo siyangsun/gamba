@@ -20,7 +20,7 @@ const LAYER_ARENA := 2
 # candlelit room instead
 const ARENA_BG_COLOR := Color(0.55, 0.60, 0.66)
 const SHELF_BG_COLOR := Color8(46, 32, 22)
-const SHELF_ZOOM := 1.2  # "zoomed out" from the tight framing
+const SHELF_ZOOM := 1.0  # "zoomed out" from the tight framing
 const SHELF_DIE_SCALE := 0.7  # dice shown ~30% smaller on the shelf
 const SHELF_WIDTH_SCALE := 1.2  # shelves ~20% wider than the die grid needs
 
@@ -307,7 +307,7 @@ func _refresh_shelf_dice(presets: Array) -> void:
 	# pull the camera back/up as the collection grows so it still all fits;
 	# SHELF_ZOOM scales the whole shot back further for breathing room
 	_cam.fov = 32
-	var target_y := top_y * 0.5 + 0.8
+	var target_y := top_y * 0.675 + 0.8
 	var cam_dist := (8.0 + float(tiers - 1) * 2.8) * SHELF_ZOOM
 	var cam_height := target_y + 3.4 * SHELF_ZOOM
 	_cam.look_at_from_position(Vector3(0, cam_height, cam_dist), Vector3(0, target_y, 0), Vector3.UP)
