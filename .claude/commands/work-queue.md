@@ -3,23 +3,11 @@ description: Implement the next unchecked item(s) in roadmap.md, committing each
 argument-hint: [count]
 ---
 
-Read `roadmap.md` at the repo root. Find the first unchecked item (`- [ ] ...`).
+Read `roadmap.md`. Take the first unchecked item (`- [ ]`).
 
-For that one item:
-1. Implement only that change — nothing else, no adjacent cleanup, no scope creep.
-2. If the item's type prefix is written as `*feat*:` (asterisks around the type) rather than plain `feat:`, run a headless test before committing: boot the project (`godot --headless --path . --quit-after N`) and confirm no script errors, and if the change is visual, render a screenshot (via a temporary debug hook, removed afterward) to actually check it. Plain `feat:`, `fix:`, `chore:`, and `refactor:` items don't require this — implement and move on.
-3. Commit it with a message that keeps the task's prefix (`chore:`, `feat:`, `fix:`, etc. — drop the asterisks from `*feat*` when writing the commit message) but is written from the task list, not copied from it verbatim. Some entries are phrased as investigations ("check if...") or as a bug/problem description rather than the fix — resolve that phrasing before it becomes a commit message:
-   - An entry phrased as a question or investigation ("check if we need to delete X") means: go investigate, decide, and act — then write the commit message as what you actually did or found (e.g. `chore: remove unused godot import metadata`, or `chore: confirm godot import metadata is all in use` if nothing needed removing), not as the original open question.
-   - An entry phrased as a problem/bug report ("light gray text doesn't read well") means: write the commit message as the fix that was applied (e.g. `fix: darken light gray text for readability`), not as the complaint.
-   - An entry already phrased as a directive (a clear feat/fix/chore instruction) can keep its wording close to as-is.
-   The commit message should read as a description of a completed change, never as an open question or a restated problem.
-4. Check the box for that item in `roadmap.md` (`- [ ]` → `- [x]`).
-5. Commit the checkbox update too — folding it into the same commit as the implementation is fine and preferred when it's a single small change.
+1. Implement only that item — nothing else, no adjacent cleanup, no scope creep.
+2. If its type is written `*feat*` (asterisks), verify before committing: headless boot (`godot --headless --path . --quit-after N`) for script errors, plus a screenshot from a temporary debug hook (remove it after) if the change is visual. Skip this for plain `feat`/`fix`/`chore`/`refactor`.
+3. Commit with the type prefix (drop any asterisks) and a message describing what was actually done — not the task's raw wording if it was a question ("check if...") or a bug report. E.g. "light gray text doesn't read well" → `fix: darken light gray text for readability`.
+4. Check the box in `roadmap.md` and commit that too (folding it into #3's commit is fine).
 
-Arguments: $ARGUMENTS
-
-- No argument: do exactly one item, then stop.
-- A number N (e.g. `3`): repeat the above for the next N unchecked items, in order, committing each one separately before moving to the next.
-- Stop immediately if you hit an item that's ambiguous enough to need a decision only the user can make — report what you did so far and what's blocking the next item, rather than guessing.
-
-Do not start additional items beyond what was asked. Stop after the requested count (default: one) even if more unchecked items remain.
+$ARGUMENTS: none = one item, then stop. A number N = the next N items, each committed separately. Stop early and report back if an item needs a decision only the user can make — don't guess.
