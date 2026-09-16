@@ -10,14 +10,15 @@ signal landed(value: int)
 const SIZE := 1.0
 const FACE_TEX := 128
 
-# selectable die skins: body tint, face (grain base), and pip color.
+# selectable die skins: body tint, face (grain base), pip color, and material type.
+# material types: "ivory" (warm tint near edges), "gem" (marbled), "metal" (shiny, brushed).
 const SKINS := {
-	"ivory": {"body": Color(0.88, 0.84, 0.73), "face": Color(0.90, 0.86, 0.75), "pip": Color(0.09, 0.08, 0.07)},
-	"onyx": {"body": Color(0.12, 0.12, 0.13), "face": Color(0.16, 0.16, 0.17), "pip": Color(0.90, 0.90, 0.92)},
-	"ruby": {"body": Color(0.50, 0.05, 0.08), "face": Color(0.60, 0.08, 0.11), "pip": Color(0.96, 0.90, 0.85)},
-	"jade": {"body": Color(0.05, 0.35, 0.22), "face": Color(0.08, 0.42, 0.28), "pip": Color(0.93, 0.96, 0.90)},
-	"gold": {"body": Color(0.60, 0.47, 0.12), "face": Color(0.72, 0.57, 0.16), "pip": Color(0.15, 0.12, 0.05)},
-	"sapphire": {"body": Color(0.08, 0.15, 0.50), "face": Color(0.10, 0.20, 0.62), "pip": Color(0.92, 0.94, 0.99)},
+	"ivory": {"body": Color(0.88, 0.84, 0.73), "face": Color(0.90, 0.86, 0.75), "pip": Color(0.09, 0.08, 0.07), "material": "ivory"},
+	"onyx": {"body": Color(0.12, 0.12, 0.13), "face": Color(0.16, 0.16, 0.17), "pip": Color(0.90, 0.90, 0.92), "material": "gem"},
+	"ruby": {"body": Color(0.50, 0.05, 0.08), "face": Color(0.60, 0.08, 0.11), "pip": Color(0.96, 0.90, 0.85), "material": "gem"},
+	"jade": {"body": Color(0.05, 0.35, 0.22), "face": Color(0.08, 0.42, 0.28), "pip": Color(0.93, 0.96, 0.90), "material": "gem"},
+	"gold": {"body": Color(0.60, 0.47, 0.12), "face": Color(0.72, 0.57, 0.16), "pip": Color(0.15, 0.12, 0.05), "material": "metal"},
+	"sapphire": {"body": Color(0.08, 0.15, 0.50), "face": Color(0.10, 0.20, 0.62), "pip": Color(0.92, 0.94, 0.99), "material": "gem"},
 }
 
 # grid positions (col,row in 0..2) of pips for each face value
@@ -90,7 +91,7 @@ func _ready() -> void:
 	body.mesh = bm
 	var bmat := StandardMaterial3D.new()
 	bmat.albedo_color = SKINS[skin_name].body
-	bmat.roughness = 0.85
+	_apply_material_type(bmat, skin_name)
 	body.material_override = bmat
 	add_child(body)
 	_body = body
@@ -108,7 +109,7 @@ func _build_faces() -> void:
 		mi.mesh = q
 		var mat := StandardMaterial3D.new()
 		mat.albedo_texture = make_face_texture(int(d.v), FACE_TEX, skin_name)
-		mat.roughness = 0.8
+		_apply_material_type(mat, skin_name)
 		mat.normal_enabled = true
 		mat.normal_texture = make_face_normalmap(int(d.v), FACE_TEX)
 		mat.normal_scale = 1.4
@@ -125,26 +126,75 @@ func set_skin(name: String) -> void:
 	skin_name = name if SKINS.has(name) else "ivory"
 	if _body == null:
 		return  # not built yet; _ready() will use skin_name
-	(_body.material_override as StandardMaterial3D).albedo_color = SKINS[skin_name].body
+	var bmat := _body.material_override as StandardMaterial3D
+	bmat.albedo_color = SKINS[skin_name].body
+	_apply_material_type(bmat, skin_name)
 	for f in _faces:
 		var mat := (f.mi as MeshInstance3D).material_override as StandardMaterial3D
 		mat.albedo_texture = make_face_texture(int(f.v), FACE_TEX, skin_name)
+		_apply_material_type(mat, skin_name)
 
 
-## Renders one die face (ivory grain + pips) at the given texture size.
+## Applies per-material-type shading (shiny metal, glossy marbled gem, or
+## matte ivory) to a face or body material. Does not touch albedo_color/texture.
+static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> void:
+	var skin: Dictionary = SKINS.get(skin_name, SKINS["ivory"])
+	match skin.get("material", "ivory"):
+		"metal":
+			# environment has no reflection probe, so a fully metallic BRDF
+			# would render near-black; lean on a tight specular highlight instead.
+			mat.metallic = 0.35
+			mat.metallic_specular = 1.0
+			mat.roughness = 0.1
+		"gem":
+			mat.metallic = 0.05
+			mat.roughness = 0.2
+			mat.clearcoat_enabled = true
+			mat.clearcoat = 0.7
+		_:
+			mat.metallic = 0.0
+			mat.roughness = 0.8
+
+
+## Renders one die face (grain/marbling/brushing + pips) at the given texture size.
 ## Shared with ShelfPanel, which uses it at a smaller size for shelf icons.
 static func make_face_texture(value: int, tex_size: int, skin_name := "ivory") -> ImageTexture:
 	var skin: Dictionary = SKINS.get(skin_name, SKINS["ivory"])
 	var face: Color = skin.face
+	var mat_type: String = skin.get("material", "ivory")
 	var img := Image.create(tex_size, tex_size, false, Image.FORMAT_RGB8)
-	# faux-physical grain
 	for y in tex_size:
 		for x in tex_size:
-			var n := randf() * 0.06 - 0.03
-			img.set_pixel(x, y, Color(
-				clampf(face.r + n, 0, 1),
-				clampf(face.g + n, 0, 1),
-				clampf(face.b + n, 0, 1)))
+			var col := face
+			match mat_type:
+				"gem":
+					# marbling: a few overlapping sine veins, lighter than the base
+					var u := float(x) / tex_size
+					var v := float(y) / tex_size
+					var vein := sin((u * 6.0 + v * 3.0 + sin(v * 9.0) * 1.5) * PI)
+					var streak := clampf(absf(vein), 0.0, 1.0)
+					streak = pow(1.0 - streak, 6.0)  # narrow bright veins
+					col = face.lerp(Color(1, 1, 1), streak * 0.35)
+					var grain := randf() * 0.03 - 0.015
+					col = Color(col.r + grain, col.g + grain, col.b + grain)
+				"metal":
+					# brushed metal: fine directional streaks, low noise
+					var streak := sin(float(x) * 1.3 + float(y) * 0.05) * 0.04
+					col = Color(
+						clampf(face.r + streak, 0, 1),
+						clampf(face.g + streak, 0, 1),
+						clampf(face.b + streak, 0, 1))
+				_:
+					# ivory: faint grain plus a warm yellow tint that builds near the edges
+					var edge_u := 1.0 - 2.0 * absf(float(x) / tex_size - 0.5)
+					var edge_v := 1.0 - 2.0 * absf(float(y) / tex_size - 0.5)
+					var edge := 1.0 - minf(edge_u, edge_v)  # 0 center -> 1 at border
+					var n := randf() * 0.06 - 0.03
+					col = Color(
+						clampf(face.r + n, 0, 1),
+						clampf(face.g + n + edge * 0.08, 0, 1),
+						clampf(face.b + n - edge * 0.05, 0, 1))
+			img.set_pixel(x, y, col)
 	var pip: Color = skin.pip
 	var radius := tex_size / 9.0
 	for g: Vector2 in PIP_LAYOUT[value]:
