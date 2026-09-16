@@ -3,3 +3,6 @@
 /android/
 export_presets.cfg
 *.translation
+
+# Claude Code local/personal config (commands, agents, etc. under .claude/ stay tracked)
+.claude/settings.local.json
