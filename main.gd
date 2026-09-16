@@ -35,12 +35,9 @@ var _env: Environment
 var _die: Die
 var _editing_path := ""  # resource_path of the preset being edited, "" when new
 var _audio_controls: HBoxContainer
-var _music_btn: Button
-var _sfx_btn: Button
 
 var _arena_root: Node3D
 var _cupboard_root: Node3D
-var _shelf_dice: Array[Die] = []
 var _shelf_die_preset: Dictionary = {}  # Die -> DicePreset, for click-to-select
 
 
@@ -268,7 +265,6 @@ func _build_cupboard() -> void:
 func _refresh_shelf_dice(presets: Array) -> void:
 	for c in _cupboard_root.get_children():
 		c.queue_free()
-	_shelf_dice.clear()
 	_shelf_die_preset.clear()
 
 	var tiers := maxi(3, ceili(float(presets.size()) / TIER_COLS))
@@ -315,7 +311,6 @@ func _refresh_shelf_dice(presets: Array) -> void:
 		d.rotation_degrees = Vector3(0, 25, 0)
 		d.scale = Vector3.ONE * SHELF_DIE_SCALE
 		d.set_skin(p.theme)
-		_shelf_dice.append(d)
 		_shelf_die_preset[d] = p
 		# name placard sits on the plank's very front lip, clear of the die
 		# in front of it (not dangling into the tier below either)
@@ -374,11 +369,8 @@ func _build_audio_controls() -> void:
 	_audio_controls.add_theme_constant_override("separation", 8)
 	add_child(_audio_controls)
 
-	_music_btn = _make_mute_button("Music", "Music")
-	_audio_controls.add_child(_music_btn)
-
-	_sfx_btn = _make_mute_button("SFX", "Sfx")
-	_audio_controls.add_child(_sfx_btn)
+	_audio_controls.add_child(_make_mute_button("Music", "Music"))
+	_audio_controls.add_child(_make_mute_button("SFX", "Sfx"))
 
 	# set after children exist so the container's min-size (used to place a
 	# non-full-rect anchor preset) reflects real content, not zero
