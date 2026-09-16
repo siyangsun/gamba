@@ -513,8 +513,15 @@ func _build_theme() -> Theme:
 	var le := _flat(Color.WHITE, dark, 2)
 	t.set_stylebox("normal", "LineEdit", le)
 	t.set_stylebox("focus", "LineEdit", _flat(Color.WHITE, Color8(0, 84, 227), 2))
+	t.set_color("font_color", "LineEdit", Color8(30, 28, 20))
 
 	t.set_color("font_color", "Label", Color8(30, 28, 20))
+
+	t.set_stylebox("normal", "OptionButton", btn)
+	t.set_stylebox("hover", "OptionButton", hov)
+	t.set_stylebox("pressed", "OptionButton", prs)
+	t.set_color("font_color", "OptionButton", Color8(20, 18, 10))
+	t.set_color("font_color", "PopupMenu", Color8(20, 18, 10))
 
 	# header font: ornate display serif for page titles only
 	t.set_type_variation("Header", "Label")
