@@ -19,9 +19,53 @@ func _ready() -> void:
 	randomize()
 	theme = _build_theme()
 	DirAccess.make_dir_recursive_absolute(PRESET_DIR)
+	_start_music()
 	_build_3d()
 	_build_panels()
 	_go_shelf()
+
+
+var _bgm: AudioStreamPlayer    # rule of the six, replayed once per loop
+var _layer: AudioStreamPlayer  # companion track for this loop's residue mod 6
+var _loop := 0                 # 0-indexed loop counter
+
+# residue of loop % 6 -> companion track layered over rule of the six
+const COMPANIONS := {
+	1: "lord of one face",
+	2: "snake eyes",
+	3: "threes company",
+	4: "quatrain",
+	5: "i see a star",
+}
+
+
+func _start_music() -> void:
+	_bgm = AudioStreamPlayer.new()
+	_layer = AudioStreamPlayer.new()
+	add_child(_bgm)
+	add_child(_layer)
+	_bgm.volume_db = -6.0  # ~half loudness
+	_layer.volume_db = -6.0
+	# rule of the six doesn't self-loop; its finish is each loop boundary
+	_bgm.finished.connect(func() -> void:
+		_loop += 1
+		_play_loop())
+	_play_loop()
+
+
+## Rule of the six always plays. On top, one companion for this loop's residue
+## mod 6 (see COMPANIONS); residues with no entry play rule of the six alone.
+func _play_loop() -> void:
+	var base := load("res://assets/audio/bgm/rule of the six.mp3")
+	base.loop = false  # so finished fires and drives the next loop
+	_bgm.stream = base
+	_bgm.play()
+	var companion: String = COMPANIONS.get(_loop % 6, "")
+	if companion != "":
+		_layer.stream = load("res://assets/audio/bgm/%s.mp3" % companion)
+		_layer.play()
+	else:
+		_layer.stop()
 
 
 # --- 3D world -------------------------------------------------------------

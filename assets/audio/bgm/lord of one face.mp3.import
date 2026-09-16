@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://dbji6sd0coup2"
+path="res://.godot/imported/lord of one face.mp3-1492fc0a34b2560a2925e2a322c8dde5.mp3str"
+
+[deps]
+
+source_file="res://assets/audio/bgm/lord of one face.mp3"
+dest_files=["res://.godot/imported/lord of one face.mp3-1492fc0a34b2560a2925e2a322c8dde5.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

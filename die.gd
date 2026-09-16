@@ -30,10 +30,18 @@ const FACE_DEFS := [
 	{"n": Vector3(0, 0, -1), "v": 4, "rot": Vector3(0, 180, 0)},
 ]
 
+const HIT_SOUNDS := 5
+const TUMBLE_SOUNDS := 6
+const HIT_COOLDOWN := 0.12  # ignore the machine-gun of contacts within one bounce
+const HIT_SPEED := 2.0  # below this a contact is a soft tumble, not a hit
+
 var _faces: Array = []  # [{v:int, n:Vector3}]
 var _rolling := false
 var _settle := 0.0
 var _timeout := 0.0
+var _hit_player: AudioStreamPlayer
+var _tumble_player: AudioStreamPlayer
+var _last_hit := -1.0
 
 
 func _ready() -> void:
@@ -43,6 +51,16 @@ func _ready() -> void:
 	pm.bounce = 0.35
 	pm.friction = 0.6
 	physics_material_override = pm
+
+	# collision sound: hard impacts thud then tumble; soft contacts just tumble
+	contact_monitor = true
+	max_contacts_reported = 4
+	body_entered.connect(_on_contact)
+	_hit_player = AudioStreamPlayer.new()
+	_tumble_player = AudioStreamPlayer.new()
+	add_child(_hit_player)
+	add_child(_tumble_player)
+	_hit_player.finished.connect(_play_tumble)  # tumble once after each hit
 
 	var col := CollisionShape3D.new()
 	var box := BoxShape3D.new()
@@ -145,6 +163,23 @@ func _physics_process(delta: float) -> void:
 		_settle = 0.0
 	if _timeout > 8.0:  # safety net if it never quite settles
 		_finish()
+
+
+func _on_contact(_body: Node) -> void:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _last_hit < HIT_COOLDOWN:
+		return
+	_last_hit = now
+	if linear_velocity.length() < HIT_SPEED:
+		_play_tumble()
+	else:
+		_hit_player.stream = load("res://assets/audio/fx/hit%d.mp3" % (randi() % HIT_SOUNDS + 1))
+		_hit_player.play()  # tumble follows via the finished signal
+
+
+func _play_tumble() -> void:
+	_tumble_player.stream = load("res://assets/audio/fx/tumble%d.mp3" % (randi() % TUMBLE_SOUNDS + 1))
+	_tumble_player.play()
 
 
 func _finish() -> void:
