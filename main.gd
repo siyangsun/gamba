@@ -488,7 +488,7 @@ func _slug(s: String) -> String:
 	return out if has_alnum else "die"
 
 
-# --- theme (XP-ish grey/beige, square corners) ----------------------------
+# --- theme (XP-ish grey/beige, slightly rounded corners) ------------------
 
 func _build_theme() -> Theme:
 	var t := Theme.new()
@@ -535,6 +535,6 @@ func _flat(bg: Color, border: Color, bw: int) -> StyleBoxFlat:
 	s.bg_color = bg
 	s.set_border_width_all(bw)
 	s.border_color = border
-	s.set_corner_radius_all(0)
+	s.set_corner_radius_all(3)
 	s.set_content_margin_all(8)
 	return s
