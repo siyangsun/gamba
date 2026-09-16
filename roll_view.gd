@@ -5,6 +5,7 @@ class_name RollView
 ## a side panel shows the result and the full face legend.
 
 signal back_requested
+signal edit_requested(preset: DicePreset)
 signal delete_requested(preset: DicePreset)
 
 var _preset: DicePreset
@@ -67,6 +68,11 @@ func _ready() -> void:
 	vb.add_child(_legend)
 
 	vb.add_child(HSeparator.new())
+
+	var edit_btn := Button.new()
+	edit_btn.text = "Edit Die"
+	edit_btn.pressed.connect(func(): edit_requested.emit(_preset))
+	vb.add_child(edit_btn)
 
 	var delete_btn := Button.new()
 	delete_btn.text = "Delete Die"

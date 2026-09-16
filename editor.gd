@@ -8,6 +8,9 @@ signal cancelled
 
 var _name: LineEdit
 var _faces: Array[LineEdit] = []
+var _skin_opt: OptionButton
+var _skin_keys: Array = []
+var _preview: TextureRect
 
 
 func _ready() -> void:
@@ -42,6 +45,8 @@ func _ready() -> void:
 		var idx := i
 		vb.add_child(_row("Face %d" % (idx + 1), func(le): _faces.append(le)))
 
+	vb.add_child(_skin_row())
+
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 8)
 	vb.add_child(buttons)
@@ -53,6 +58,35 @@ func _ready() -> void:
 	cancel.text = "Cancel"
 	cancel.pressed.connect(func(): cancelled.emit())
 	buttons.add_child(cancel)
+
+
+func _skin_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var l := Label.new()
+	l.text = "Skin"
+	l.custom_minimum_size.x = 90
+	row.add_child(l)
+	_skin_keys = Die.SKINS.keys()
+	_skin_opt = OptionButton.new()
+	for key in _skin_keys:
+		_skin_opt.add_item(String(key).capitalize())
+	_skin_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_skin_opt.item_selected.connect(func(_i): _update_preview())
+	row.add_child(_skin_opt)
+	_preview = TextureRect.new()
+	_preview.custom_minimum_size = Vector2(48, 48)
+	_preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	row.add_child(_preview)
+	return row
+
+
+func _current_skin() -> String:
+	return _skin_keys[maxi(0, _skin_opt.selected)]
+
+
+func _update_preview() -> void:
+	_preview.texture = Die.make_face_texture(5, 48, _current_skin())
 
 
 func _row(label_text: String, register: Callable) -> HBoxContainer:
@@ -75,6 +109,9 @@ func load_preset(p: DicePreset) -> void:
 	_name.text = p.name if p.name != "Untitled Die" else ""
 	for i in 6:
 		_faces[i].text = p.faces[i]
+	var si := _skin_keys.find(p.theme)
+	_skin_opt.select(si if si >= 0 else 0)
+	_update_preview()
 
 
 func _on_save() -> void:
@@ -85,4 +122,5 @@ func _on_save() -> void:
 	for le in _faces:
 		arr.append(le.text.strip_edges())
 	p.faces = arr
+	p.theme = _current_skin()
 	saved.emit(p)

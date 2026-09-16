@@ -10,6 +10,16 @@ signal landed(value: int)
 const SIZE := 1.0
 const FACE_TEX := 128
 
+# selectable die skins: body tint, face (grain base), and pip color.
+const SKINS := {
+	"ivory": {"body": Color(0.88, 0.84, 0.73), "face": Color(0.90, 0.86, 0.75), "pip": Color(0.09, 0.08, 0.07)},
+	"onyx": {"body": Color(0.12, 0.12, 0.13), "face": Color(0.16, 0.16, 0.17), "pip": Color(0.90, 0.90, 0.92)},
+	"ruby": {"body": Color(0.50, 0.05, 0.08), "face": Color(0.60, 0.08, 0.11), "pip": Color(0.96, 0.90, 0.85)},
+	"jade": {"body": Color(0.05, 0.35, 0.22), "face": Color(0.08, 0.42, 0.28), "pip": Color(0.93, 0.96, 0.90)},
+	"gold": {"body": Color(0.60, 0.47, 0.12), "face": Color(0.72, 0.57, 0.16), "pip": Color(0.15, 0.12, 0.05)},
+	"sapphire": {"body": Color(0.08, 0.15, 0.50), "face": Color(0.10, 0.20, 0.62), "pip": Color(0.92, 0.94, 0.99)},
+}
+
 # grid positions (col,row in 0..2) of pips for each face value
 const PIP_LAYOUT := {
 	1: [Vector2(1, 1)],
@@ -35,7 +45,9 @@ const TUMBLE_SOUNDS := 6
 const HIT_COOLDOWN := 0.12  # ignore the machine-gun of contacts within one bounce
 const HIT_SPEED := 2.0  # below this a contact is a soft tumble, not a hit
 
-var _faces: Array = []  # [{v:int, n:Vector3}]
+var skin_name := "ivory"
+var _faces: Array = []  # [{v:int, n:Vector3, mi:MeshInstance3D}]
+var _body: MeshInstance3D
 var _rolling := false
 var _settle := 0.0
 var _timeout := 0.0
@@ -74,10 +86,11 @@ func _ready() -> void:
 	bm.size = Vector3.ONE * SIZE * 0.99
 	body.mesh = bm
 	var bmat := StandardMaterial3D.new()
-	bmat.albedo_color = Color(0.88, 0.84, 0.73)
+	bmat.albedo_color = SKINS[skin_name].body
 	bmat.roughness = 0.85
 	body.material_override = bmat
 	add_child(body)
+	_body = body
 
 	_build_faces()
 	_self_check()
@@ -91,7 +104,7 @@ func _build_faces() -> void:
 		q.size = Vector2(SIZE, SIZE) * 0.99
 		mi.mesh = q
 		var mat := StandardMaterial3D.new()
-		mat.albedo_texture = make_face_texture(int(d.v), FACE_TEX)
+		mat.albedo_texture = make_face_texture(int(d.v), FACE_TEX, skin_name)
 		mat.roughness = 0.8
 		mat.normal_enabled = true
 		mat.normal_texture = make_face_normalmap(int(d.v), FACE_TEX)
@@ -100,23 +113,35 @@ func _build_faces() -> void:
 		var r: Vector3 = d.rot
 		mi.rotation = Vector3(deg_to_rad(r.x), deg_to_rad(r.y), deg_to_rad(r.z))
 		add_child(mi)
-		_faces.append({"v": int(d.v), "n": d.n})
+		_faces.append({"v": int(d.v), "n": d.n, "mi": mi})
+
+
+## Re-tint body + face art to the named skin (falls back to ivory).
+func set_skin(name: String) -> void:
+	skin_name = name if SKINS.has(name) else "ivory"
+	if _body == null:
+		return  # not built yet; _ready() will use skin_name
+	(_body.material_override as StandardMaterial3D).albedo_color = SKINS[skin_name].body
+	for f in _faces:
+		var mat := (f.mi as MeshInstance3D).material_override as StandardMaterial3D
+		mat.albedo_texture = make_face_texture(int(f.v), FACE_TEX, skin_name)
 
 
 ## Renders one die face (ivory grain + pips) at the given texture size.
 ## Shared with ShelfPanel, which uses it at a smaller size for shelf icons.
-static func make_face_texture(value: int, tex_size: int) -> ImageTexture:
+static func make_face_texture(value: int, tex_size: int, skin_name := "ivory") -> ImageTexture:
+	var skin: Dictionary = SKINS.get(skin_name, SKINS["ivory"])
+	var face: Color = skin.face
 	var img := Image.create(tex_size, tex_size, false, Image.FORMAT_RGB8)
-	var ivory := Color(0.90, 0.86, 0.75)
 	# faux-physical grain
 	for y in tex_size:
 		for x in tex_size:
 			var n := randf() * 0.06 - 0.03
 			img.set_pixel(x, y, Color(
-				clampf(ivory.r + n, 0, 1),
-				clampf(ivory.g + n, 0, 1),
-				clampf(ivory.b + n, 0, 1)))
-	var pip := Color(0.09, 0.08, 0.07)
+				clampf(face.r + n, 0, 1),
+				clampf(face.g + n, 0, 1),
+				clampf(face.b + n, 0, 1)))
+	var pip: Color = skin.pip
 	var radius := tex_size / 9.0
 	for g: Vector2 in PIP_LAYOUT[value]:
 		var cx: float = tex_size * (0.25 + 0.25 * g.x)

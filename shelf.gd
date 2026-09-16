@@ -98,7 +98,7 @@ func _make_tile(p: DicePreset) -> Control:
 	tile.add_child(vb)
 
 	var icon := TextureRect.new()
-	icon.texture = Die.make_face_texture(_icon_face(p), ICON_TEX)
+	icon.texture = Die.make_face_texture(_icon_face(p), ICON_TEX, p.theme)
 	icon.custom_minimum_size = Vector2(ICON_TEX, ICON_TEX)
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE

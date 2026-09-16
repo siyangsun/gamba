@@ -13,6 +13,7 @@ var _editor: EditorPanel
 var _roll: RollView
 var _vpc: SubViewportContainer
 var _die: Die
+var _editing_path := ""  # resource_path of the preset being edited, "" when new
 
 
 func _ready() -> void:
@@ -194,6 +195,7 @@ func _build_panels() -> void:
 
 	_roll = RollView.new()
 	_roll.back_requested.connect(_go_shelf)
+	_roll.edit_requested.connect(_go_editor_edit)
 	_roll.delete_requested.connect(_on_delete_preset)
 	add_child(_roll)
 
@@ -206,12 +208,21 @@ func _go_shelf() -> void:
 
 func _go_editor_new() -> void:
 	_state = State.EDITOR
+	_editing_path = ""
 	_editor.load_preset(DicePreset.new())
+	_set_visible(false, true, false)
+
+
+func _go_editor_edit(preset: DicePreset) -> void:
+	_state = State.EDITOR
+	_editing_path = preset.resource_path
+	_editor.load_preset(preset)
 	_set_visible(false, true, false)
 
 
 func _go_roll(preset: DicePreset) -> void:
 	_state = State.ROLL
+	_die.set_skin(preset.theme)
 	_roll.set_preset(preset)
 	_set_visible(false, false, true)
 
@@ -224,6 +235,11 @@ func _set_visible(shelf: bool, editor: bool, roll: bool) -> void:
 
 
 func _on_saved(preset: DicePreset) -> void:
+	# a rename during edit changes the slug; drop the old file so it isn't orphaned
+	var new_path := "%s/%s.tres" % [PRESET_DIR, _slug(preset.name)]
+	if _editing_path != "" and _editing_path != new_path:
+		DirAccess.remove_absolute(_editing_path)
+	_editing_path = ""
 	_save_preset(preset)
 	_go_shelf()
 
