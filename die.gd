@@ -71,6 +71,8 @@ func _ready() -> void:
 	body_entered.connect(_on_contact)
 	_hit_player = AudioStreamPlayer.new()
 	_tumble_player = AudioStreamPlayer.new()
+	_hit_player.bus = "Sfx"
+	_tumble_player.bus = "Sfx"
 	add_child(_hit_player)
 	add_child(_tumble_player)
 	_hit_player.finished.connect(_play_tumble)  # tumble once after each hit

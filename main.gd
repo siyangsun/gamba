@@ -34,6 +34,9 @@ var _cam: Camera3D
 var _env: Environment
 var _die: Die
 var _editing_path := ""  # resource_path of the preset being edited, "" when new
+var _audio_controls: HBoxContainer
+var _music_btn: Button
+var _sfx_btn: Button
 
 var _arena_root: Node3D
 var _cupboard_root: Node3D
@@ -45,11 +48,24 @@ func _ready() -> void:
 	randomize()
 	theme = _build_theme()
 	DirAccess.make_dir_recursive_absolute(PRESET_DIR)
+	_setup_audio_buses()
 	_start_music()
 	_build_3d()
 	_build_cupboard()
 	_build_panels()
+	_build_audio_controls()
 	_go_shelf()
+
+
+## Music and SFX get their own buses so the mute buttons can toggle each
+## independently without hunting down every AudioStreamPlayer's volume.
+func _setup_audio_buses() -> void:
+	for bus_name in ["Music", "Sfx"]:
+		if AudioServer.get_bus_index(bus_name) == -1:
+			var idx := AudioServer.bus_count
+			AudioServer.add_bus(idx)
+			AudioServer.set_bus_name(idx, bus_name)
+			AudioServer.set_bus_send(idx, "Master")
 
 
 var _bgm: AudioStreamPlayer    # rule of the six, replayed once per loop
@@ -69,6 +85,8 @@ const COMPANIONS := {
 func _start_music() -> void:
 	_bgm = AudioStreamPlayer.new()
 	_layer = AudioStreamPlayer.new()
+	_bgm.bus = "Music"
+	_layer.bus = "Music"
 	add_child(_bgm)
 	add_child(_layer)
 	_bgm.volume_db = -6.0  # ~half loudness
@@ -349,6 +367,35 @@ func _build_panels() -> void:
 	add_child(_roll)
 
 
+## Persistent mute toggles, corner-docked, drawn above every screen except
+## the editor (whose form fills the corner they'd otherwise sit in).
+func _build_audio_controls() -> void:
+	_audio_controls = HBoxContainer.new()
+	_audio_controls.add_theme_constant_override("separation", 8)
+	add_child(_audio_controls)
+
+	_music_btn = _make_mute_button("Music", "Music")
+	_audio_controls.add_child(_music_btn)
+
+	_sfx_btn = _make_mute_button("SFX", "Sfx")
+	_audio_controls.add_child(_sfx_btn)
+
+	# set after children exist so the container's min-size (used to place a
+	# non-full-rect anchor preset) reflects real content, not zero
+	_audio_controls.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_MINSIZE, 12)
+
+
+func _make_mute_button(label: String, bus_name: String) -> Button:
+	var b := Button.new()
+	b.text = "%s: On" % label
+	b.pressed.connect(func():
+		var idx := AudioServer.get_bus_index(bus_name)
+		var muted := not AudioServer.is_bus_mute(idx)
+		AudioServer.set_bus_mute(idx, muted)
+		b.text = "%s: %s" % [label, "Off" if muted else "On"])
+	return b
+
+
 func _go_shelf() -> void:
 	_state = State.SHELF
 	_refresh_shelf_dice(_load_presets())
@@ -386,6 +433,9 @@ func _set_visible(shelf: bool, editor: bool, roll: bool) -> void:
 	_vpc.visible = shelf or roll
 	_arena_root.visible = roll
 	_cupboard_root.visible = shelf
+	# tucked in the bottom-left corner; hidden in the editor since its form
+	# fills nearly the whole screen and would sit right under the buttons
+	_audio_controls.visible = not editor
 
 
 func _on_saved(preset: DicePreset) -> void:
