@@ -330,6 +330,7 @@ func _refresh_shelf_dice(presets: Array) -> void:
 func _make_label3d(txt: String, pos: Vector3) -> Label3D:
 	var lbl := Label3D.new()
 	lbl.text = txt
+	lbl.font = load("res://fonts/EBGaramond-Regular.ttf")
 	lbl.font_size = 40
 	lbl.pixel_size = 0.0055
 	lbl.position = pos
