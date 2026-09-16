@@ -93,6 +93,8 @@ func _build_faces() -> void:
 		var mat := StandardMaterial3D.new()
 		mat.albedo_texture = make_face_texture(int(d.v), FACE_TEX)
 		mat.roughness = 0.8
+		mat.normal_enabled = true
+		mat.normal_texture = make_face_normalmap(int(d.v), FACE_TEX)
 		mi.material_override = mat
 		mi.position = (d.n as Vector3) * (half + 0.002)
 		var r: Vector3 = d.rot
@@ -120,6 +122,32 @@ static func make_face_texture(value: int, tex_size: int) -> ImageTexture:
 		var cx: float = tex_size * (0.25 + 0.25 * g.x)
 		var cy: float = tex_size * (0.25 + 0.25 * g.y)
 		_fill_circle(tex_size, img, cx, cy, radius, pip)
+	return ImageTexture.create_from_image(img)
+
+
+## Normal map giving each pip a shallow spherical dimple (concave dish).
+static func make_face_normalmap(value: int, tex_size: int) -> ImageTexture:
+	var img := Image.create(tex_size, tex_size, false, Image.FORMAT_RGB8)
+	img.fill(Color(0.5, 0.5, 1.0))  # flat surface
+	var radius := tex_size / 9.0
+	var depth := 2.5  # larger = flatter dimple; smaller = deeper. "slight" concavity
+	for g: Vector2 in PIP_LAYOUT[value]:
+		var cx: float = tex_size * (0.25 + 0.25 * g.x)
+		var cy: float = tex_size * (0.25 + 0.25 * g.y)
+		var y0 := maxi(0, int(cy - radius - 1))
+		var y1 := mini(tex_size, int(cy + radius + 2))
+		var x0 := maxi(0, int(cx - radius - 1))
+		var x1 := mini(tex_size, int(cx + radius + 2))
+		for y in range(y0, y1):
+			for x in range(x0, x1):
+				var d := Vector2(x - cx, y - cy)
+				if d.length() > radius:
+					continue
+				# concave: horizontal normal points toward the center.
+				# green flipped for Godot's OpenGL (Y-up) normal convention.
+				var n := Vector3(-d.x / radius, d.y / radius, depth).normalized()
+				img.set_pixel(x, y, Color(
+					n.x * 0.5 + 0.5, n.y * 0.5 + 0.5, n.z * 0.5 + 0.5))
 	return ImageTexture.create_from_image(img)
 
 
