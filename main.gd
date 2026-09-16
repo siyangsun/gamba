@@ -16,6 +16,12 @@ const ARENA_CENTER := Vector3(-2.2, 0, 0)
 const LAYER_SHELF := 1
 const LAYER_ARENA := 2
 
+# arena keeps its cool daylight-ish look; the shelf reads as a dim,
+# candlelit room instead
+const ARENA_BG_COLOR := Color(0.55, 0.60, 0.66)
+const SHELF_BG_COLOR := Color8(46, 32, 22)
+const SHELF_ZOOM := 1.3  # "30% zoomed out" from the tight framing
+
 var _state: State = State.SHELF
 var _shelf: ShelfPanel
 var _editor: EditorPanel
@@ -23,6 +29,7 @@ var _roll: RollView
 var _vpc: SubViewportContainer
 var _world: Node3D
 var _cam: Camera3D
+var _env: Environment
 var _die: Die
 var _editing_path := ""  # resource_path of the preset being edited, "" when new
 
@@ -113,13 +120,13 @@ func _build_3d() -> void:
 	_world.add_child(light)
 
 	var we := WorldEnvironment.new()
-	var env := Environment.new()
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.55, 0.60, 0.66)
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.7, 0.7, 0.7)
-	env.ambient_light_energy = 0.6
-	we.environment = env
+	_env = Environment.new()
+	_env.background_mode = Environment.BG_COLOR
+	_env.background_color = ARENA_BG_COLOR
+	_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	_env.ambient_light_color = Color(0.7, 0.7, 0.7)
+	_env.ambient_light_energy = 0.6
+	we.environment = _env
 	_world.add_child(we)
 
 	_arena_root = Node3D.new()
@@ -244,7 +251,7 @@ func _refresh_shelf_dice(presets: Array) -> void:
 	_shelf_dice.clear()
 	_shelf_die_preset.clear()
 
-	var tiers := maxi(1, ceili(float(presets.size()) / TIER_COLS))
+	var tiers := maxi(3, ceili(float(presets.size()) / TIER_COLS))
 	var half_w := TIER_COLS * DIE_SPACING * 0.5 + 0.5
 	var base_y := 0.4
 	var top_y := base_y + float(tiers - 1) * TIER_HEIGHT
@@ -294,12 +301,14 @@ func _refresh_shelf_dice(presets: Array) -> void:
 		_cupboard_root.add_child(_make_label3d(p.name,
 			Vector3(x, plank_y + PLANK_THICKNESS * 0.5 + 0.12, PLANK_DEPTH * 0.5 - 0.03)))
 
-	# pull the camera back/up as the collection grows so it still all fits
+	# pull the camera back/up as the collection grows so it still all fits;
+	# SHELF_ZOOM scales the whole shot back further for breathing room
 	_cam.fov = 32
-	var cam_dist := 8.0 + float(tiers - 1) * 2.8
-	var cam_height := top_y * 0.5 + 4.2
-	_cam.look_at_from_position(Vector3(0, cam_height, cam_dist),
-		Vector3(0, top_y * 0.5 + 0.8, 0), Vector3.UP)
+	var target_y := top_y * 0.5 + 0.8
+	var cam_dist := (8.0 + float(tiers - 1) * 2.8) * SHELF_ZOOM
+	var cam_height := target_y + 3.4 * SHELF_ZOOM
+	_cam.look_at_from_position(Vector3(0, cam_height, cam_dist), Vector3(0, target_y, 0), Vector3.UP)
+	_env.background_color = SHELF_BG_COLOR
 
 
 func _make_label3d(txt: String, pos: Vector3) -> Label3D:
@@ -363,6 +372,7 @@ func _go_roll(preset: DicePreset) -> void:
 	_roll.set_preset(preset)
 	_cam.fov = 45
 	_cam.look_at_from_position(Vector3(0, 7, 8), Vector3.ZERO, Vector3.UP)
+	_env.background_color = ARENA_BG_COLOR
 	_set_visible(false, false, true)
 
 
