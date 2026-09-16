@@ -109,6 +109,7 @@ func _build_faces() -> void:
 		mat.roughness = 0.8
 		mat.normal_enabled = true
 		mat.normal_texture = make_face_normalmap(int(d.v), FACE_TEX)
+		mat.normal_scale = 1.4
 		mi.material_override = mat
 		mi.position = (d.n as Vector3) * (half + 0.002)
 		var r: Vector3 = d.rot
@@ -151,12 +152,12 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory") -
 	return ImageTexture.create_from_image(img)
 
 
-## Normal map giving each pip a shallow spherical dimple (concave dish).
+## Normal map giving each pip a deep spherical dimple (concave dish).
 static func make_face_normalmap(value: int, tex_size: int) -> ImageTexture:
 	var img := Image.create(tex_size, tex_size, false, Image.FORMAT_RGB8)
 	img.fill(Color(0.5, 0.5, 1.0))  # flat surface
 	var radius := tex_size / 9.0
-	var depth := 2.5  # larger = flatter dimple; smaller = deeper. "slight" concavity
+	var depth := 1.8  # larger = flatter dimple; smaller = deeper
 	for g: Vector2 in PIP_LAYOUT[value]:
 		var cx: float = tex_size * (0.25 + 0.25 * g.x)
 		var cy: float = tex_size * (0.25 + 0.25 * g.y)
