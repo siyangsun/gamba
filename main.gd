@@ -7,6 +7,10 @@ enum State { SHELF, EDITOR, ROLL }
 
 const PRESET_DIR := "user://presets"
 
+# roll view's side panel is docked on the right, so the arena is recentered
+# left of world origin to read as centered in the space that's actually clear
+const ARENA_CENTER := Vector3(-2.2, 0, 0)
+
 var _state: State = State.SHELF
 var _shelf: ShelfPanel
 var _editor: EditorPanel
@@ -106,18 +110,22 @@ func _build_3d() -> void:
 	we.environment = env
 	world.add_child(we)
 
-	# felt arena: floor + four walls to keep the die on screen
-	var ah := 3.5
-	_add_box(world, Vector3(0, -0.25, 0), Vector3(ah * 2, 0.5, ah * 2),
+	# rubber arena: floor + four walls to keep the die on screen. Wider than
+	# deep and recentered left so it reads centered next to the side panel
+	# docked on the right of the roll view.
+	var hx := 4.5  # half-extent left/right
+	var hz := 3.5  # half-extent near/far
+	_add_box(world, ARENA_CENTER + Vector3(0, -0.25, 0), Vector3(hx * 2, 0.5, hz * 2),
 		Color(0.28, 0.34, 0.28), true)
-	_add_box(world, Vector3(-ah, 1, 0), Vector3(0.3, 3, ah * 2), Color.BLACK, false)
-	_add_box(world, Vector3(ah, 1, 0), Vector3(0.3, 3, ah * 2), Color.BLACK, false)
-	_add_box(world, Vector3(0, 1, ah), Vector3(ah * 2, 3, 0.3), Color.BLACK, false)
-	_add_box(world, Vector3(0, 1, -ah), Vector3(ah * 2, 3, 0.3), Color.BLACK, false)
+	_add_box(world, ARENA_CENTER + Vector3(-hx, 1, 0), Vector3(0.3, 3, hz * 2), Color.BLACK, false)
+	_add_box(world, ARENA_CENTER + Vector3(hx, 1, 0), Vector3(0.3, 3, hz * 2), Color.BLACK, false)
+	_add_box(world, ARENA_CENTER + Vector3(0, 1, hz), Vector3(hx * 2, 3, 0.3), Color.BLACK, false)
+	_add_box(world, ARENA_CENTER + Vector3(0, 1, -hz), Vector3(hx * 2, 3, 0.3), Color.BLACK, false)
 
 	_die = Die.new()
 	world.add_child(_die)
-	_die.position = Vector3(0, 0.5, 0)
+	_die.position = ARENA_CENTER + Vector3(0, 0.5, 0)
+	_die.roll_center = Vector2(ARENA_CENTER.x, ARENA_CENTER.z)
 	_die.landed.connect(_on_landed)
 
 

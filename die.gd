@@ -46,6 +46,7 @@ const HIT_COOLDOWN := 0.12  # ignore the machine-gun of contacts within one boun
 const HIT_SPEED := 2.0  # below this a contact is a soft tumble, not a hit
 
 var skin_name := "ivory"
+var roll_center := Vector2.ZERO  # world x/z the die is tossed above and settles near
 var _faces: Array = []  # [{v:int, n:Vector3, mi:MeshInstance3D}]
 var _body: MeshInstance3D
 var _rolling := false
@@ -190,7 +191,8 @@ static func _fill_circle(tex_size: int, img: Image, cx: float, cy: float, r: flo
 func roll() -> void:
 	sleeping = false
 	var t := global_transform
-	t.origin = Vector3(randf_range(-0.5, 0.5), 3.0, randf_range(-0.5, 0.5))
+	t.origin = Vector3(roll_center.x + randf_range(-0.5, 0.5), 3.0,
+		roll_center.y + randf_range(-0.5, 0.5))
 	t.basis = Basis.from_euler(Vector3(
 		randf_range(0, TAU), randf_range(0, TAU), randf_range(0, TAU)))
 	global_transform = t
