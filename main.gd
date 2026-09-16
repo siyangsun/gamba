@@ -11,13 +11,25 @@ const PRESET_DIR := "user://presets"
 # left of world origin to read as centered in the space that's actually clear
 const ARENA_CENTER := Vector3(-2.2, 0, 0)
 
+# physics layers: arena and cupboard geometry are kept apart so an
+# invisible-but-still-solid arena wall can't catch a shelf raycast (or vice versa)
+const LAYER_SHELF := 1
+const LAYER_ARENA := 2
+
 var _state: State = State.SHELF
 var _shelf: ShelfPanel
 var _editor: EditorPanel
 var _roll: RollView
 var _vpc: SubViewportContainer
+var _world: Node3D
+var _cam: Camera3D
 var _die: Die
 var _editing_path := ""  # resource_path of the preset being edited, "" when new
+
+var _arena_root: Node3D
+var _cupboard_root: Node3D
+var _shelf_dice: Array[Die] = []
+var _shelf_die_preset: Dictionary = {}  # Die -> DicePreset, for click-to-select
 
 
 func _ready() -> void:
@@ -26,6 +38,7 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(PRESET_DIR)
 	_start_music()
 	_build_3d()
+	_build_cupboard()
 	_build_panels()
 	_go_shelf()
 
@@ -87,18 +100,17 @@ func _build_3d() -> void:
 	vp.own_world_3d = true
 	_vpc.add_child(vp)
 
-	var world := Node3D.new()
-	vp.add_child(world)
+	_world = Node3D.new()
+	vp.add_child(_world)
 
-	var cam := Camera3D.new()
-	cam.fov = 45
-	world.add_child(cam)
-	cam.look_at_from_position(Vector3(0, 7, 8), Vector3.ZERO, Vector3.UP)
+	_cam = Camera3D.new()
+	_cam.fov = 45
+	_world.add_child(_cam)
 
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-55, -40, 0)
 	light.shadow_enabled = true
-	world.add_child(light)
+	_world.add_child(light)
 
 	var we := WorldEnvironment.new()
 	var env := Environment.new()
@@ -108,30 +120,41 @@ func _build_3d() -> void:
 	env.ambient_light_color = Color(0.7, 0.7, 0.7)
 	env.ambient_light_energy = 0.6
 	we.environment = env
-	world.add_child(we)
+	_world.add_child(we)
+
+	_arena_root = Node3D.new()
+	_world.add_child(_arena_root)
 
 	# rubber arena: floor + four walls to keep the die on screen. Wider than
 	# deep and recentered left so it reads centered next to the side panel
 	# docked on the right of the roll view.
 	var hx := 4.5  # half-extent left/right
 	var hz := 3.5  # half-extent near/far
-	_add_box(world, ARENA_CENTER + Vector3(0, -0.25, 0), Vector3(hx * 2, 0.5, hz * 2),
-		Color(0.28, 0.34, 0.28), true)
-	_add_box(world, ARENA_CENTER + Vector3(-hx, 1, 0), Vector3(0.3, 3, hz * 2), Color.BLACK, false)
-	_add_box(world, ARENA_CENTER + Vector3(hx, 1, 0), Vector3(0.3, 3, hz * 2), Color.BLACK, false)
-	_add_box(world, ARENA_CENTER + Vector3(0, 1, hz), Vector3(hx * 2, 3, 0.3), Color.BLACK, false)
-	_add_box(world, ARENA_CENTER + Vector3(0, 1, -hz), Vector3(hx * 2, 3, 0.3), Color.BLACK, false)
+	# arena geometry sits on its own collision layer so it can't intercept
+	# raycasts aimed at the shelf while merely hidden (visible=false only
+	# stops rendering, not physics) and vice versa
+	_add_box(_arena_root, ARENA_CENTER + Vector3(0, -0.25, 0), Vector3(hx * 2, 0.5, hz * 2),
+		Color(0.28, 0.34, 0.28), true, LAYER_ARENA)
+	_add_box(_arena_root, ARENA_CENTER + Vector3(-hx, 1, 0), Vector3(0.3, 3, hz * 2), Color.BLACK, false, LAYER_ARENA)
+	_add_box(_arena_root, ARENA_CENTER + Vector3(hx, 1, 0), Vector3(0.3, 3, hz * 2), Color.BLACK, false, LAYER_ARENA)
+	_add_box(_arena_root, ARENA_CENTER + Vector3(0, 1, hz), Vector3(hx * 2, 3, 0.3), Color.BLACK, false, LAYER_ARENA)
+	_add_box(_arena_root, ARENA_CENTER + Vector3(0, 1, -hz), Vector3(hx * 2, 3, 0.3), Color.BLACK, false, LAYER_ARENA)
 
 	_die = Die.new()
-	world.add_child(_die)
+	_arena_root.add_child(_die)
 	_die.position = ARENA_CENTER + Vector3(0, 0.5, 0)
 	_die.roll_center = Vector2(ARENA_CENTER.x, ARENA_CENTER.z)
 	_die.landed.connect(_on_landed)
+	_die.collision_layer = LAYER_ARENA
+	_die.collision_mask = LAYER_ARENA
 
 
-func _add_box(world: Node3D, pos: Vector3, size: Vector3, col: Color, visible: bool) -> void:
+func _add_box(world: Node3D, pos: Vector3, size: Vector3, col: Color, visible: bool,
+		collision_layer: int = LAYER_SHELF) -> void:
 	var sb := StaticBody3D.new()
 	sb.position = pos
+	sb.collision_layer = collision_layer
+	sb.collision_mask = collision_layer
 	var cs := CollisionShape3D.new()
 	var b := BoxShape3D.new()
 	b.size = size
@@ -174,12 +197,120 @@ func _pleather_normal_map() -> NoiseTexture2D:
 
 
 func _on_view_input(event: InputEvent) -> void:
-	if _state != State.ROLL:
+	if not (event is InputEventMouseButton and event.pressed
+			and event.button_index == MOUSE_BUTTON_LEFT):
 		return
-	if event is InputEventMouseButton and event.pressed \
-			and event.button_index == MOUSE_BUTTON_LEFT:
+	if _state == State.ROLL:
 		_roll.clear_result()
 		_die.roll()
+	elif _state == State.SHELF:
+		_handle_shelf_click(event.position)
+
+
+## Raycasts into the cupboard scene to find which die (if any) was clicked.
+func _handle_shelf_click(screen_pos: Vector2) -> void:
+	var space := _world.get_world_3d().direct_space_state
+	var from := _cam.project_ray_origin(screen_pos)
+	var to := from + _cam.project_ray_normal(screen_pos) * 50.0
+	var query := PhysicsRayQueryParameters3D.create(from, to, LAYER_SHELF)
+	var hit := space.intersect_ray(query)
+	var collider = hit.get("collider")
+	if collider != null and _shelf_die_preset.has(collider):
+		_go_roll(_shelf_die_preset[collider])
+
+
+# --- cupboard shelf ---------------------------------------------------------
+# The shelf screen is a real 3D cupboard in the same world as the roll arena;
+# only one is visible (and gets the camera) at a time.
+
+const TIER_COLS := 4
+const DIE_SPACING := 1.7
+const TIER_HEIGHT := 2.2
+const PLANK_DEPTH := 1.15
+const PLANK_THICKNESS := 0.15
+const WOOD_COLOR := Color8(140, 100, 60)
+
+
+func _build_cupboard() -> void:
+	_cupboard_root = Node3D.new()
+	_world.add_child(_cupboard_root)
+
+
+## Rebuilds the cupboard frame, planks, and one real (frozen) Die per preset,
+## sized to the current collection, then reframes the camera to fit it.
+func _refresh_shelf_dice(presets: Array) -> void:
+	for c in _cupboard_root.get_children():
+		c.queue_free()
+	_shelf_dice.clear()
+	_shelf_die_preset.clear()
+
+	var tiers := maxi(1, ceili(float(presets.size()) / TIER_COLS))
+	var half_w := TIER_COLS * DIE_SPACING * 0.5 + 0.5
+	var base_y := 0.4
+	var top_y := base_y + float(tiers - 1) * TIER_HEIGHT
+	# frame spans from just under the bottom plank to well above the top
+	# tier's dice, so the sides don't dangle below the lowest shelf
+	var bottom_edge := base_y - 0.3
+	var top_edge := top_y + 1.4
+	var total_h := top_edge - bottom_edge
+	var frame_y := (top_edge + bottom_edge) * 0.5
+
+	_add_box(_cupboard_root, Vector3(0, frame_y, -PLANK_DEPTH * 0.5 - 0.05),
+		Vector3(half_w * 2, total_h, 0.1), WOOD_COLOR, true)
+	_add_box(_cupboard_root, Vector3(-half_w, frame_y, 0),
+		Vector3(0.15, total_h, PLANK_DEPTH), WOOD_COLOR, true)
+	_add_box(_cupboard_root, Vector3(half_w, frame_y, 0),
+		Vector3(0.15, total_h, PLANK_DEPTH), WOOD_COLOR, true)
+
+	for t in tiers:
+		var plank_y := top_y - float(t) * TIER_HEIGHT
+		_add_box(_cupboard_root, Vector3(0, plank_y, 0),
+			Vector3(half_w * 2, PLANK_THICKNESS, PLANK_DEPTH), WOOD_COLOR, true)
+
+	if presets.is_empty():
+		_cupboard_root.add_child(
+			_make_label3d("No dice yet — create one to start rolling.",
+				Vector3(0, base_y + PLANK_THICKNESS * 0.5 + 0.5, PLANK_DEPTH * 0.5 - 0.1)))
+
+	for i in presets.size():
+		var t := i / TIER_COLS
+		var cols_here := mini(TIER_COLS, presets.size() - t * TIER_COLS)
+		var col_in_tier := i % TIER_COLS
+		var x := (col_in_tier - float(cols_here - 1) * 0.5) * DIE_SPACING
+		var plank_y := top_y - float(t) * TIER_HEIGHT
+		var die_y := plank_y + PLANK_THICKNESS * 0.5 + 0.5
+
+		var p: DicePreset = presets[i]
+		var d := Die.new()
+		_cupboard_root.add_child(d)
+		d.freeze = true
+		d.position = Vector3(x, die_y, -0.15)
+		d.rotation_degrees = Vector3(0, 25, 0)
+		d.set_skin(p.theme)
+		_shelf_dice.append(d)
+		_shelf_die_preset[d] = p
+		# name placard sits on the plank's very front lip, clear of the die
+		# in front of it (not dangling into the tier below either)
+		_cupboard_root.add_child(_make_label3d(p.name,
+			Vector3(x, plank_y + PLANK_THICKNESS * 0.5 + 0.12, PLANK_DEPTH * 0.5 - 0.03)))
+
+	# pull the camera back/up as the collection grows so it still all fits
+	_cam.fov = 32
+	var cam_dist := 8.0 + float(tiers - 1) * 2.8
+	var cam_height := top_y * 0.5 + 4.2
+	_cam.look_at_from_position(Vector3(0, cam_height, cam_dist),
+		Vector3(0, top_y * 0.5 + 0.8, 0), Vector3.UP)
+
+
+func _make_label3d(txt: String, pos: Vector3) -> Label3D:
+	var lbl := Label3D.new()
+	lbl.text = txt
+	lbl.font_size = 40
+	lbl.pixel_size = 0.0055
+	lbl.position = pos
+	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lbl.outline_size = 12
+	return lbl
 
 
 func _on_landed(value: int) -> void:
@@ -192,8 +323,6 @@ func _on_landed(value: int) -> void:
 func _build_panels() -> void:
 	_shelf = ShelfPanel.new()
 	_shelf.new_die_requested.connect(_go_editor_new)
-	_shelf.preset_chosen.connect(_go_roll)
-	_shelf.preset_delete_requested.connect(_on_delete_preset)
 	add_child(_shelf)
 
 	_editor = EditorPanel.new()
@@ -210,7 +339,7 @@ func _build_panels() -> void:
 
 func _go_shelf() -> void:
 	_state = State.SHELF
-	_shelf.refresh(_load_presets())
+	_refresh_shelf_dice(_load_presets())
 	_set_visible(true, false, false)
 
 
@@ -232,6 +361,8 @@ func _go_roll(preset: DicePreset) -> void:
 	_state = State.ROLL
 	_die.set_skin(preset.theme)
 	_roll.set_preset(preset)
+	_cam.fov = 45
+	_cam.look_at_from_position(Vector3(0, 7, 8), Vector3.ZERO, Vector3.UP)
 	_set_visible(false, false, true)
 
 
@@ -239,7 +370,9 @@ func _set_visible(shelf: bool, editor: bool, roll: bool) -> void:
 	_shelf.visible = shelf
 	_editor.visible = editor
 	_roll.visible = roll
-	_vpc.visible = roll
+	_vpc.visible = shelf or roll
+	_arena_root.visible = roll
+	_cupboard_root.visible = shelf
 
 
 func _on_saved(preset: DicePreset) -> void:
