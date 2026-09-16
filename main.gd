@@ -501,6 +501,8 @@ func _slug(s: String) -> String:
 func _build_theme() -> Theme:
 	var t := Theme.new()
 	t.default_font_size = 16
+	# body font: warm old-style serif for everything except page titles
+	t.default_font = load("res://fonts/EBGaramond-Regular.ttf")
 	var beige := Color8(236, 233, 216)
 	var dark := Color8(113, 111, 100)
 
