@@ -20,7 +20,9 @@ const LAYER_ARENA := 2
 # candlelit room instead
 const ARENA_BG_COLOR := Color(0.55, 0.60, 0.66)
 const SHELF_BG_COLOR := Color8(46, 32, 22)
-const SHELF_ZOOM := 1.3  # "30% zoomed out" from the tight framing
+const SHELF_ZOOM := 1.2  # "zoomed out" from the tight framing
+const SHELF_DIE_SCALE := 0.7  # dice shown ~30% smaller on the shelf
+const SHELF_WIDTH_SCALE := 1.2  # shelves ~20% wider than the die grid needs
 
 var _state: State = State.SHELF
 var _shelf: ShelfPanel
@@ -252,7 +254,7 @@ func _refresh_shelf_dice(presets: Array) -> void:
 	_shelf_die_preset.clear()
 
 	var tiers := maxi(3, ceili(float(presets.size()) / TIER_COLS))
-	var half_w := TIER_COLS * DIE_SPACING * 0.5 + 0.5
+	var half_w := (TIER_COLS * DIE_SPACING * 0.5 + 0.5) * SHELF_WIDTH_SCALE
 	var base_y := 0.4
 	var top_y := base_y + float(tiers - 1) * TIER_HEIGHT
 	# frame spans from just under the bottom plank to well above the top
@@ -285,7 +287,7 @@ func _refresh_shelf_dice(presets: Array) -> void:
 		var col_in_tier := i % TIER_COLS
 		var x := (col_in_tier - float(cols_here - 1) * 0.5) * DIE_SPACING
 		var plank_y := top_y - float(t) * TIER_HEIGHT
-		var die_y := plank_y + PLANK_THICKNESS * 0.5 + 0.5
+		var die_y := plank_y + PLANK_THICKNESS * 0.5 + 0.5 * SHELF_DIE_SCALE
 
 		var p: DicePreset = presets[i]
 		var d := Die.new()
@@ -293,6 +295,7 @@ func _refresh_shelf_dice(presets: Array) -> void:
 		d.freeze = true
 		d.position = Vector3(x, die_y, -0.15)
 		d.rotation_degrees = Vector3(0, 25, 0)
+		d.scale = Vector3.ONE * SHELF_DIE_SCALE
 		d.set_skin(p.theme)
 		_shelf_dice.append(d)
 		_shelf_die_preset[d] = p
