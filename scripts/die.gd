@@ -42,6 +42,13 @@ const NUMERAL_FONT_PATH := "res://fonts/EBGaramond-Regular.ttf"
 
 static var _numeral_font: Font
 
+# generated face textures are pure functions of (skin, numbering, value,
+# tex_size) -- cache them so the same combination (e.g. many dice sharing a
+# skin, or just re-opening the shelf) doesn't re-run the pixel loops every time.
+static var _albedo_cache: Dictionary = {}
+static var _detail_cache: Dictionary = {}
+static var _normal_cache: Dictionary = {}
+
 # face outward-normal (local) -> value. Opposite faces sum to 7.
 const FACE_DEFS := [
 	{"n": Vector3(1, 0, 0), "v": 1, "rot": Vector3(0, 90, 0)},
@@ -226,10 +233,15 @@ static func _apply_pip_matte(mat: StandardMaterial3D, value: int, skin_name: Str
 ## G = clearcoat glossiness (left at full everywhere).
 ## B = absolute roughness (base_roughness, or matte at the markings).
 static func make_face_detail_texture(value: int, tex_size: int, base_roughness: float, numbering_style: String) -> ImageTexture:
+	var key := "%s|%d|%d|%.3f" % [numbering_style, value, tex_size, base_roughness]
+	if _detail_cache.has(key):
+		return _detail_cache[key]
 	var img := Image.create(tex_size, tex_size, false, Image.FORMAT_RGB8)
 	img.fill(Color(1.0, 1.0, base_roughness))
 	_paint_markings(img, value, numbering_style, tex_size, Color(0.0, 1.0, 0.92))
-	return ImageTexture.create_from_image(img)
+	var tex := ImageTexture.create_from_image(img)
+	_detail_cache[key] = tex
+	return tex
 
 
 ## Draws the face marking (dot pips, a digit, or a roman numeral) in the
@@ -312,6 +324,9 @@ static func _blit_glyph(img: Image, glyph: Dictionary, pen_x: float, pen_y: floa
 ## Renders one die face (grain/marbling/brushing + markings) at the given
 ## texture size. Shared with EditorPanel's preview, which uses it smaller.
 static func make_face_texture(value: int, tex_size: int, skin_name := "ivory", numbering_style := "dots") -> ImageTexture:
+	var key := "%s|%s|%d|%d" % [skin_name, numbering_style, value, tex_size]
+	if _albedo_cache.has(key):
+		return _albedo_cache[key]
 	var skin: Dictionary = SKINS.get(skin_name, SKINS["ivory"])
 	var face: Color = skin.face
 	var mat_type: String = skin.get("material", "ivory")
@@ -369,7 +384,9 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory", n
 	if mat_type == "gem":
 		_draw_cracks(tex_size, img, 2 + (randi() % 2))
 	_paint_markings(img, value, numbering_style, tex_size, skin.pip)
-	return ImageTexture.create_from_image(img)
+	var tex := ImageTexture.create_from_image(img)
+	_albedo_cache[key] = tex
+	return tex
 
 
 ## Scratches a couple of jagged fracture lines into a gem face texture,
@@ -397,10 +414,15 @@ static func _draw_cracks(tex_size: int, img: Image, count: int) -> void:
 ## Numbers/numerals stay flat -- glyph-shaped dimples aren't worth the
 ## complexity, so those styles print flush with the face.
 static func make_face_normalmap(value: int, tex_size: int, numbering_style := "dots") -> ImageTexture:
+	var key := "%s|%d|%d" % [numbering_style, value, tex_size]
+	if _normal_cache.has(key):
+		return _normal_cache[key]
 	var img := Image.create(tex_size, tex_size, false, Image.FORMAT_RGB8)
 	img.fill(Color(0.5, 0.5, 1.0))  # flat surface
 	if numbering_style != "dots":
-		return ImageTexture.create_from_image(img)
+		var flat := ImageTexture.create_from_image(img)
+		_normal_cache[key] = flat
+		return flat
 	var radius := tex_size / 9.0
 	var depth := 1.8  # larger = flatter dimple; smaller = deeper
 	for g: Vector2 in PIP_LAYOUT[value]:
@@ -420,7 +442,9 @@ static func make_face_normalmap(value: int, tex_size: int, numbering_style := "d
 				var n := Vector3(-d.x / radius, d.y / radius, depth).normalized()
 				img.set_pixel(x, y, Color(
 					n.x * 0.5 + 0.5, n.y * 0.5 + 0.5, n.z * 0.5 + 0.5))
-	return ImageTexture.create_from_image(img)
+	var tex := ImageTexture.create_from_image(img)
+	_normal_cache[key] = tex
+	return tex
 
 
 static func _fill_circle(tex_size: int, img: Image, cx: float, cy: float, r: float, col: Color) -> void:
