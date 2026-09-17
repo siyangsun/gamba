@@ -16,8 +16,8 @@ const FACE_TEX := 128
 # "acrylic" (smooth glossy plastic, no marbling/tint).
 const SKINS := {
 	"ivory": {"body": Color(0.88, 0.84, 0.73), "face": Color(0.90, 0.86, 0.75), "pip": Color(0.09, 0.08, 0.07), "material": "ivory"},
-	"onyx": {"body": Color(0.12, 0.12, 0.13), "face": Color(0.16, 0.16, 0.17), "pip": Color(0.90, 0.90, 0.92), "material": "stone"},
-	"graphite": {"body": Color(0.32, 0.32, 0.34), "face": Color(0.38, 0.38, 0.40), "pip": Color(0.88, 0.88, 0.90), "material": "stone"},
+	"onyx": {"body": Color(0.12, 0.12, 0.13), "face": Color(0.16, 0.16, 0.17), "pip": Color(0.90, 0.90, 0.92), "material": "gem"},
+	"graphite": {"body": Color(0.26, 0.26, 0.28), "face": Color(0.31, 0.31, 0.33), "pip": Color(0.88, 0.88, 0.90), "material": "stone"},
 	"ruby": {"body": Color(0.50, 0.05, 0.08), "face": Color(0.60, 0.08, 0.11), "pip": Color(0.85, 0.68, 0.25), "material": "gem"},
 	"jade": {"body": Color(0.05, 0.35, 0.22), "face": Color(0.08, 0.42, 0.28), "pip": Color(0.95, 0.89, 0.70), "material": "gem"},
 	"gold": {"body": Color(0.60, 0.47, 0.12), "face": Color(0.72, 0.57, 0.16), "pip": Color(0.10, 0.08, 0.04), "material": "metal"},
@@ -140,7 +140,8 @@ func set_skin(name: String) -> void:
 
 
 ## Applies per-material-type shading (shiny metal, glossy stone/gem, or
-## matte ivory) to a face or body material. Does not touch albedo_color/texture.
+## matte ivory) to a face or body material. Leaves albedo_color/texture alone
+## except for gems, which also get a translucent alpha.
 static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> void:
 	var skin: Dictionary = SKINS.get(skin_name, SKINS["ivory"])
 	match skin.get("material", "ivory"):
@@ -160,6 +161,8 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 			mat.roughness = 0.12
 			mat.clearcoat_enabled = true
 			mat.clearcoat = 0.8
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			mat.albedo_color.a = 0.82
 		"acrylic":
 			mat.metallic = 0.0
 			mat.roughness = 0.12
