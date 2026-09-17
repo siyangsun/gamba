@@ -37,26 +37,10 @@ const PIP_LAYOUT := {
 
 # selectable face-marking styles: dots (pips), arabic numbers, roman numerals
 const NUMBERING_STYLES := ["dots", "numbers", "numerals"]
+const ROMAN_TEXT := {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V", 6: "VI"}
+const NUMERAL_FONT_PATH := "res://fonts/EBGaramond-Regular.ttf"
 
-# 5x7 bitmap glyphs for the "numbers" style
-const DIGIT_GLYPHS := {
-	1: ["..#..", ".##..", "..#..", "..#..", "..#..", "..#..", ".###."],
-	2: [".###.", "#...#", "....#", "...#.", "..#..", ".#...", "#####"],
-	3: [".###.", "#...#", "....#", "..##.", "....#", "#...#", ".###."],
-	4: ["...#.", "..##.", ".#.#.", "#..#.", "#####", "...#.", "...#."],
-	5: ["#####", "#....", "####.", "....#", "....#", "#...#", ".###."],
-	6: [".###.", "#....", "#....", "####.", "#...#", "#...#", ".###."],
-}
-
-# bitmap glyphs for the "numerals" style, composed as sequences of I/V below
-const ROMAN_GLYPHS := {
-	"I": ["###", ".#.", ".#.", ".#.", ".#.", ".#.", "###"],
-	"V": ["#...#", "#...#", "#...#", "#...#", ".#.#.", ".#.#.", "..#.."],
-}
-const ROMAN_SEQUENCE := {
-	1: ["I"], 2: ["I", "I"], 3: ["I", "I", "I"],
-	4: ["I", "V"], 5: ["V"], 6: ["V", "I"],
-}
+static var _numeral_font: Font
 
 # face outward-normal (local) -> value. Opposite faces sum to 7.
 const FACE_DEFS := [
@@ -254,24 +238,9 @@ static func make_face_detail_texture(value: int, tex_size: int, base_roughness: 
 static func _paint_markings(img: Image, value: int, numbering_style: String, tex_size: int, col: Color) -> void:
 	match numbering_style:
 		"numbers":
-			var rows: Array = DIGIT_GLYPHS[value]
-			var cell := maxi(1, tex_size / 14)
-			var w := 5 * cell
-			var h := 7 * cell
-			_draw_bitmap_glyph(img, rows, (tex_size - w) / 2, (tex_size - h) / 2, cell, col)
+			_paint_text(img, str(value), tex_size, col)
 		"numerals":
-			var glyphs: Array = ROMAN_SEQUENCE[value]
-			var cell := maxi(1, tex_size / 16)
-			var total_cols := 0
-			for gk in glyphs:
-				total_cols += String(ROMAN_GLYPHS[gk][0]).length()
-			total_cols += glyphs.size() - 1  # 1-col gap between glyphs
-			var h := 7 * cell
-			var ox := (tex_size - total_cols * cell) / 2
-			var oy := (tex_size - h) / 2
-			for gk in glyphs:
-				_draw_bitmap_glyph(img, ROMAN_GLYPHS[gk], ox, oy, cell, col)
-				ox += (String(ROMAN_GLYPHS[gk][0]).length() + 1) * cell
+			_paint_text(img, ROMAN_TEXT[value], tex_size, col)
 		_:
 			var radius := tex_size / 9.0
 			for g: Vector2 in PIP_LAYOUT[value]:
@@ -280,21 +249,64 @@ static func _paint_markings(img: Image, value: int, numbering_style: String, tex
 				_fill_circle(tex_size, img, cx, cy, radius, col)
 
 
-## Blits a bitmap glyph (an array of '#'/'.' row strings) at cell resolution.
-static func _draw_bitmap_glyph(img: Image, rows: Array, ox: int, oy: int, cell: int, col: Color) -> void:
+static func _get_numeral_font() -> Font:
+	if _numeral_font == null:
+		_numeral_font = load(NUMERAL_FONT_PATH)
+	return _numeral_font
+
+
+## Rasterizes `text` in the die's serif font and blits it centered onto
+## `img`, alpha-blended per pixel so glyph edges stay antialiased instead
+## of pixelated. Uses TextServer's glyph atlas directly (synchronous, no
+## viewport/frame wait) so this works headless too.
+static func _paint_text(img: Image, text: String, tex_size: int, col: Color) -> void:
+	var rid: RID = _get_numeral_font().get_rids()[0]
+	var ts := TextServerManager.get_primary_interface()
+	var px_size := int(tex_size * 0.62)
+
+	var glyphs: Array = []
+	var total_w := 0.0
+	for i in text.length():
+		var glyph_index := ts.font_get_glyph_index(rid, px_size, text.unicode_at(i), 0)
+		ts.font_render_glyph(rid, Vector2i(px_size, 0), glyph_index)
+		var tex_idx := ts.font_get_glyph_texture_idx(rid, Vector2i(px_size, 0), glyph_index)
+		var advance: Vector2 = ts.font_get_glyph_advance(rid, px_size, glyph_index)
+		glyphs.append({
+			"atlas": ts.font_get_texture_image(rid, Vector2i(px_size, 0), tex_idx),
+			"uv": ts.font_get_glyph_uv_rect(rid, Vector2i(px_size, 0), glyph_index),
+			"offset": ts.font_get_glyph_offset(rid, Vector2i(px_size, 0), glyph_index),
+			"advance": advance,
+		})
+		total_w += advance.x
+
+	var ascent: float = ts.font_get_ascent(rid, px_size)
+	var descent: float = ts.font_get_descent(rid, px_size)
+	var pen_x := (tex_size - total_w) * 0.5
+	var pen_y := (tex_size - (ascent + descent)) * 0.5 + ascent
+
+	for g in glyphs:
+		_blit_glyph(img, g, pen_x, pen_y, col)
+		pen_x += (g.advance as Vector2).x
+
+
+static func _blit_glyph(img: Image, glyph: Dictionary, pen_x: float, pen_y: float, col: Color) -> void:
+	var atlas: Image = glyph.atlas
+	var uv: Rect2 = glyph.uv
+	var offset: Vector2 = glyph.offset
 	var w := img.get_width()
 	var h := img.get_height()
-	for ry in rows.size():
-		var row: String = rows[ry]
-		for rx in row.length():
-			if row[rx] != "#":
+	var ax := int(uv.position.x)
+	var ay := int(uv.position.y)
+	for gy in int(uv.size.y):
+		for gx in int(uv.size.x):
+			var a := atlas.get_pixel(ax + gx, ay + gy).a
+			if a <= 0.01:
 				continue
-			for py in cell:
-				for px in cell:
-					var x := ox + rx * cell + px
-					var y := oy + ry * cell + py
-					if x >= 0 and x < w and y >= 0 and y < h:
-						img.set_pixel(x, y, col)
+			var dx := int(pen_x + offset.x + gx)
+			var dy := int(pen_y + offset.y + gy)
+			if dx < 0 or dx >= w or dy < 0 or dy >= h:
+				continue
+			img.set_pixel(dx, dy, img.get_pixel(dx, dy).lerp(col, a))
 
 
 ## Renders one die face (grain/marbling/brushing + markings) at the given
