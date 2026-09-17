@@ -11,11 +11,13 @@ const SIZE := 1.0
 const FACE_TEX := 128
 
 # selectable die skins: body tint, face (grain base), pip color, and material type.
-# material types: "ivory" (warm tint near edges), "gem" (marbled), "metal" (shiny, brushed),
+# material types: "ivory" (warm tint near edges), "stone" (spiral-veined, monochrome),
+# "gem" (multi-shade marbling + cracks), "metal" (shiny, brushed),
 # "acrylic" (smooth glossy plastic, no marbling/tint).
 const SKINS := {
 	"ivory": {"body": Color(0.88, 0.84, 0.73), "face": Color(0.90, 0.86, 0.75), "pip": Color(0.09, 0.08, 0.07), "material": "ivory"},
-	"onyx": {"body": Color(0.12, 0.12, 0.13), "face": Color(0.16, 0.16, 0.17), "pip": Color(0.90, 0.90, 0.92), "material": "gem"},
+	"onyx": {"body": Color(0.12, 0.12, 0.13), "face": Color(0.16, 0.16, 0.17), "pip": Color(0.90, 0.90, 0.92), "material": "stone"},
+	"graphite": {"body": Color(0.32, 0.32, 0.34), "face": Color(0.38, 0.38, 0.40), "pip": Color(0.88, 0.88, 0.90), "material": "stone"},
 	"ruby": {"body": Color(0.50, 0.05, 0.08), "face": Color(0.60, 0.08, 0.11), "pip": Color(0.85, 0.68, 0.25), "material": "gem"},
 	"jade": {"body": Color(0.05, 0.35, 0.22), "face": Color(0.08, 0.42, 0.28), "pip": Color(0.95, 0.89, 0.70), "material": "gem"},
 	"gold": {"body": Color(0.60, 0.47, 0.12), "face": Color(0.72, 0.57, 0.16), "pip": Color(0.10, 0.08, 0.04), "material": "metal"},
@@ -137,7 +139,7 @@ func set_skin(name: String) -> void:
 		_apply_material_type(mat, skin_name)
 
 
-## Applies per-material-type shading (shiny metal, glossy marbled gem, or
+## Applies per-material-type shading (shiny metal, glossy stone/gem, or
 ## matte ivory) to a face or body material. Does not touch albedo_color/texture.
 static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> void:
 	var skin: Dictionary = SKINS.get(skin_name, SKINS["ivory"])
@@ -148,11 +150,16 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 			mat.metallic = 0.35
 			mat.metallic_specular = 1.0
 			mat.roughness = 0.1
-		"gem":
+		"stone":
 			mat.metallic = 0.05
-			mat.roughness = 0.2
+			mat.roughness = 0.25
 			mat.clearcoat_enabled = true
-			mat.clearcoat = 0.7
+			mat.clearcoat = 0.5
+		"gem":
+			mat.metallic = 0.02
+			mat.roughness = 0.12
+			mat.clearcoat_enabled = true
+			mat.clearcoat = 0.8
 		"acrylic":
 			mat.metallic = 0.0
 			mat.roughness = 0.12
@@ -174,8 +181,8 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory") -
 		for x in tex_size:
 			var col := face
 			match mat_type:
-				"gem":
-					# marbling: a few overlapping sine veins, lighter than the base
+				"stone":
+					# spiral veining: a few overlapping sine veins, lighter than the base
 					var u := float(x) / tex_size
 					var v := float(y) / tex_size
 					var vein := sin((u * 6.0 + v * 3.0 + sin(v * 9.0) * 1.5) * PI)
@@ -183,6 +190,17 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory") -
 					streak = pow(1.0 - streak, 6.0)  # narrow bright veins
 					col = face.lerp(Color(1, 1, 1), streak * 0.35)
 					var grain := randf() * 0.03 - 0.015
+					col = Color(col.r + grain, col.g + grain, col.b + grain)
+				"gem":
+					# smoky depth marbling: layered turbulence blends the base color
+					# toward near-black in cloudy bands, unlike the stone spiral veins
+					var u := float(x) / tex_size
+					var v := float(y) / tex_size
+					var n1 := sin((u * 4.0 + v * 5.5) * PI + sin(v * 7.0) * 2.0)
+					var n2 := sin((u * 9.5 - v * 3.0) * PI + sin(u * 6.0) * 1.5)
+					var depth := clampf((n1 * 0.6 + n2 * 0.4) * 0.5 + 0.5, 0.0, 1.0)
+					col = face.lerp(Color(0.03, 0.03, 0.05), pow(depth, 2.2) * 0.6)
+					var grain := randf() * 0.02 - 0.01
 					col = Color(col.r + grain, col.g + grain, col.b + grain)
 				"metal":
 					# brushed metal: fine directional streaks, low noise
@@ -209,6 +227,8 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory") -
 						clampf(face.g + n + edge * 0.08, 0, 1),
 						clampf(face.b + n - edge * 0.05, 0, 1))
 			img.set_pixel(x, y, col)
+	if mat_type == "gem":
+		_draw_cracks(tex_size, img, 2 + (randi() % 2))
 	var pip: Color = skin.pip
 	var radius := tex_size / 9.0
 	for g: Vector2 in PIP_LAYOUT[value]:
@@ -216,6 +236,27 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory") -
 		var cy: float = tex_size * (0.25 + 0.25 * g.y)
 		_fill_circle(tex_size, img, cx, cy, radius, pip)
 	return ImageTexture.create_from_image(img)
+
+
+## Scratches a couple of jagged fracture lines into a gem face texture,
+## darkening whatever marbling is already there rather than painting flat lines.
+static func _draw_cracks(tex_size: int, img: Image, count: int) -> void:
+	for _i in count:
+		var x := randf() * tex_size
+		var y := randf() * tex_size
+		var angle := randf() * TAU
+		var steps := int(tex_size * randf_range(0.7, 1.3))
+		for _s in steps:
+			angle += randf_range(-0.4, 0.4)
+			x += cos(angle) * 1.5
+			y += sin(angle) * 1.5
+			var ix := int(x)
+			var iy := int(y)
+			if ix < 0 or ix >= tex_size or iy < 0 or iy >= tex_size:
+				break
+			img.set_pixel(ix, iy, img.get_pixel(ix, iy).darkened(0.6))
+			if ix + 1 < tex_size:
+				img.set_pixel(ix + 1, iy, img.get_pixel(ix + 1, iy).darkened(0.3))
 
 
 ## Normal map giving each pip a deep spherical dimple (concave dish).
