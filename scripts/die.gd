@@ -11,14 +11,16 @@ const SIZE := 1.0
 const FACE_TEX := 128
 
 # selectable die skins: body tint, face (grain base), pip color, and material type.
-# material types: "ivory" (warm tint near edges), "gem" (marbled), "metal" (shiny, brushed).
+# material types: "ivory" (warm tint near edges), "gem" (marbled), "metal" (shiny, brushed),
+# "acrylic" (smooth glossy plastic, no marbling/tint).
 const SKINS := {
 	"ivory": {"body": Color(0.88, 0.84, 0.73), "face": Color(0.90, 0.86, 0.75), "pip": Color(0.09, 0.08, 0.07), "material": "ivory"},
 	"onyx": {"body": Color(0.12, 0.12, 0.13), "face": Color(0.16, 0.16, 0.17), "pip": Color(0.90, 0.90, 0.92), "material": "gem"},
-	"ruby": {"body": Color(0.50, 0.05, 0.08), "face": Color(0.60, 0.08, 0.11), "pip": Color(0.96, 0.90, 0.85), "material": "gem"},
-	"jade": {"body": Color(0.05, 0.35, 0.22), "face": Color(0.08, 0.42, 0.28), "pip": Color(0.93, 0.96, 0.90), "material": "gem"},
-	"gold": {"body": Color(0.60, 0.47, 0.12), "face": Color(0.72, 0.57, 0.16), "pip": Color(0.15, 0.12, 0.05), "material": "metal"},
-	"sapphire": {"body": Color(0.08, 0.15, 0.50), "face": Color(0.10, 0.20, 0.62), "pip": Color(0.92, 0.94, 0.99), "material": "gem"},
+	"ruby": {"body": Color(0.50, 0.05, 0.08), "face": Color(0.60, 0.08, 0.11), "pip": Color(0.85, 0.68, 0.25), "material": "gem"},
+	"jade": {"body": Color(0.05, 0.35, 0.22), "face": Color(0.08, 0.42, 0.28), "pip": Color(0.95, 0.89, 0.70), "material": "gem"},
+	"gold": {"body": Color(0.60, 0.47, 0.12), "face": Color(0.72, 0.57, 0.16), "pip": Color(0.10, 0.08, 0.04), "material": "metal"},
+	"sapphire": {"body": Color(0.08, 0.15, 0.50), "face": Color(0.10, 0.20, 0.62), "pip": Color(0.85, 0.89, 0.97), "material": "gem"},
+	"acrylic": {"body": Color(0.93, 0.93, 0.95), "face": Color(0.96, 0.96, 0.98), "pip": Color(0.05, 0.05, 0.06), "material": "acrylic"},
 }
 
 # grid positions (col,row in 0..2) of pips for each face value
@@ -151,6 +153,11 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 			mat.roughness = 0.2
 			mat.clearcoat_enabled = true
 			mat.clearcoat = 0.7
+		"acrylic":
+			mat.metallic = 0.0
+			mat.roughness = 0.12
+			mat.clearcoat_enabled = true
+			mat.clearcoat = 0.4
 		_:
 			mat.metallic = 0.0
 			mat.roughness = 0.8
@@ -184,6 +191,13 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory") -
 						clampf(face.r + streak, 0, 1),
 						clampf(face.g + streak, 0, 1),
 						clampf(face.b + streak, 0, 1))
+				"acrylic":
+					# smooth injection-molded plastic: almost no grain
+					var n := randf() * 0.012 - 0.006
+					col = Color(
+						clampf(face.r + n, 0, 1),
+						clampf(face.g + n, 0, 1),
+						clampf(face.b + n, 0, 1))
 				_:
 					# ivory: faint grain plus a warm yellow tint that builds near the edges
 					var edge_u := 1.0 - 2.0 * absf(float(x) / tex_size - 0.5)
