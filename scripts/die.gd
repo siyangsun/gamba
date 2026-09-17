@@ -114,6 +114,7 @@ func _build_faces() -> void:
 		var mat := StandardMaterial3D.new()
 		mat.albedo_texture = make_face_texture(int(d.v), FACE_TEX, skin_name)
 		_apply_material_type(mat, skin_name)
+		_apply_pip_matte(mat, int(d.v), skin_name)
 		mat.normal_enabled = true
 		mat.normal_texture = make_face_normalmap(int(d.v), FACE_TEX)
 		mat.normal_scale = 1.4
@@ -137,6 +138,18 @@ func set_skin(name: String) -> void:
 		var mat := (f.mi as MeshInstance3D).material_override as StandardMaterial3D
 		mat.albedo_texture = make_face_texture(int(f.v), FACE_TEX, skin_name)
 		_apply_material_type(mat, skin_name)
+		_apply_pip_matte(mat, int(f.v), skin_name)
+
+
+## Base (non-pip) surface roughness for each material type. Single source of
+## truth shared between the material scalar and the per-face roughness map.
+static func _base_roughness(mat_type: String) -> float:
+	match mat_type:
+		"metal": return 0.1
+		"stone": return 0.25
+		"gem": return 0.12
+		"acrylic": return 0.12
+		_: return 0.8
 
 
 ## Applies per-material-type shading (shiny metal, glossy stone/gem, or
@@ -144,21 +157,20 @@ func set_skin(name: String) -> void:
 ## except for gems, which also get a translucent alpha.
 static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> void:
 	var skin: Dictionary = SKINS.get(skin_name, SKINS["ivory"])
-	match skin.get("material", "ivory"):
+	var mat_type: String = skin.get("material", "ivory")
+	mat.roughness = _base_roughness(mat_type)
+	match mat_type:
 		"metal":
 			# environment has no reflection probe, so a fully metallic BRDF
 			# would render near-black; lean on a tight specular highlight instead.
 			mat.metallic = 0.35
 			mat.metallic_specular = 1.0
-			mat.roughness = 0.1
 		"stone":
 			mat.metallic = 0.05
-			mat.roughness = 0.25
 			mat.clearcoat_enabled = true
 			mat.clearcoat = 0.5
 		"gem":
 			mat.metallic = 0.02
-			mat.roughness = 0.12
 			mat.clearcoat_enabled = true
 			mat.clearcoat = 0.8
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -169,12 +181,39 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 			mat.refraction_scale = 0.09
 		"acrylic":
 			mat.metallic = 0.0
-			mat.roughness = 0.12
 			mat.clearcoat_enabled = true
 			mat.clearcoat = 0.4
 		_:
 			mat.metallic = 0.0
-			mat.roughness = 0.8
+
+
+## Kills the shiny highlight/clearcoat over the pips specifically, so the
+## dots read as matte dents rather than catching the same polish as the
+## surrounding face. clearcoat_texture has a fixed R=strength/G=glossiness
+## convention (no channel selector), so roughness is packed into blue instead.
+static func _apply_pip_matte(mat: StandardMaterial3D, value: int, skin_name: String) -> void:
+	var skin: Dictionary = SKINS.get(skin_name, SKINS["ivory"])
+	var mat_type: String = skin.get("material", "ivory")
+	var detail := make_face_detail_texture(value, FACE_TEX, _base_roughness(mat_type))
+	mat.roughness = 1.0  # texture now fully controls roughness, per pixel
+	mat.roughness_texture = detail
+	mat.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_BLUE
+	if mat.clearcoat_enabled:
+		mat.clearcoat_texture = detail
+
+
+## R = clearcoat strength (1 = configured amount, 0 = none at the pips).
+## G = clearcoat glossiness (left at full everywhere).
+## B = absolute roughness (base_roughness, or matte at the pips).
+static func make_face_detail_texture(value: int, tex_size: int, base_roughness: float) -> ImageTexture:
+	var img := Image.create(tex_size, tex_size, false, Image.FORMAT_RGB8)
+	img.fill(Color(1.0, 1.0, base_roughness))
+	var radius := tex_size / 9.0
+	for g: Vector2 in PIP_LAYOUT[value]:
+		var cx: float = tex_size * (0.25 + 0.25 * g.x)
+		var cy: float = tex_size * (0.25 + 0.25 * g.y)
+		_fill_circle(tex_size, img, cx, cy, radius, Color(0.0, 1.0, 0.92))
+	return ImageTexture.create_from_image(img)
 
 
 ## Renders one die face (grain/marbling/brushing + pips) at the given texture size.
