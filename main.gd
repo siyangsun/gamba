@@ -432,6 +432,8 @@ func _set_visible(shelf: bool, editor: bool, roll: bool) -> void:
 
 
 func _on_saved(preset: DicePreset) -> void:
+	if _state != State.EDITOR:
+		return  # a re-entrant Save (e.g. a fast double-click) already handled this
 	var was_editing := _editing_path != ""
 	# a rename during edit changes the slug; drop the old file so it isn't orphaned
 	var new_path := "%s/%s.tres" % [PRESET_DIR, _slug(preset.name)]
