@@ -10,6 +10,8 @@ var _name: LineEdit
 var _faces: Array[LineEdit] = []
 var _skin_opt: OptionButton
 var _skin_keys: Array = []
+var _numbering_opt: OptionButton
+var _numbering_keys: Array = []
 var _preview: TextureRect
 
 
@@ -46,6 +48,7 @@ func _ready() -> void:
 		vb.add_child(_row("Face %d" % (idx + 1), func(le): _faces.append(le)))
 
 	vb.add_child(_skin_row())
+	vb.add_child(_numbering_row())
 
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 8)
@@ -81,12 +84,33 @@ func _skin_row() -> HBoxContainer:
 	return row
 
 
+func _numbering_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var l := Label.new()
+	l.text = "Numbering"
+	l.custom_minimum_size.x = 90
+	row.add_child(l)
+	_numbering_keys = Die.NUMBERING_STYLES
+	_numbering_opt = OptionButton.new()
+	for key in _numbering_keys:
+		_numbering_opt.add_item(String(key).capitalize())
+	_numbering_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_numbering_opt.item_selected.connect(func(_i): _update_preview())
+	row.add_child(_numbering_opt)
+	return row
+
+
 func _current_skin() -> String:
 	return _skin_keys[maxi(0, _skin_opt.selected)]
 
 
+func _current_numbering() -> String:
+	return _numbering_keys[maxi(0, _numbering_opt.selected)]
+
+
 func _update_preview() -> void:
-	_preview.texture = Die.make_face_texture(5, 48, _current_skin())
+	_preview.texture = Die.make_face_texture(5, 48, _current_skin(), _current_numbering())
 
 
 func _row(label_text: String, register: Callable) -> HBoxContainer:
@@ -111,6 +135,8 @@ func load_preset(p: DicePreset) -> void:
 		_faces[i].text = p.faces[i]
 	var si := _skin_keys.find(p.theme)
 	_skin_opt.select(si if si >= 0 else 0)
+	var ni := _numbering_keys.find(p.numbering)
+	_numbering_opt.select(ni if ni >= 0 else 0)
 	_update_preview()
 
 
@@ -123,4 +149,5 @@ func _on_save() -> void:
 		arr.append(le.text.strip_edges())
 	p.faces = arr
 	p.theme = _current_skin()
+	p.numbering = _current_numbering()
 	saved.emit(p)

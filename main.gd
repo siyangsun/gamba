@@ -311,6 +311,7 @@ func _refresh_shelf_dice(presets: Array) -> void:
 		d.rotation_degrees = Vector3(0, 25, 0)
 		d.scale = Vector3.ONE * SHELF_DIE_SCALE
 		d.set_skin(p.theme)
+		d.set_numbering(p.numbering)
 		_shelf_die_preset[d] = p
 		# name placard sits on the plank's very front lip, clear of the die
 		# in front of it (not dangling into the tier below either)
@@ -412,6 +413,7 @@ func _go_editor_edit(preset: DicePreset) -> void:
 func _go_roll(preset: DicePreset) -> void:
 	_state = State.ROLL
 	_die.set_skin(preset.theme)
+	_die.set_numbering(preset.numbering)
 	_roll.set_preset(preset)
 	_cam.fov = 45
 	_cam.look_at_from_position(Vector3(0, 7, 8), Vector3.ZERO, Vector3.UP)

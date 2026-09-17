@@ -35,6 +35,29 @@ const PIP_LAYOUT := {
 	6: [Vector2(0, 0), Vector2(2, 0), Vector2(0, 1), Vector2(2, 1), Vector2(0, 2), Vector2(2, 2)],
 }
 
+# selectable face-marking styles: dots (pips), arabic numbers, roman numerals
+const NUMBERING_STYLES := ["dots", "numbers", "numerals"]
+
+# 5x7 bitmap glyphs for the "numbers" style
+const DIGIT_GLYPHS := {
+	1: ["..#..", ".##..", "..#..", "..#..", "..#..", "..#..", ".###."],
+	2: [".###.", "#...#", "....#", "...#.", "..#..", ".#...", "#####"],
+	3: [".###.", "#...#", "....#", "..##.", "....#", "#...#", ".###."],
+	4: ["...#.", "..##.", ".#.#.", "#..#.", "#####", "...#.", "...#."],
+	5: ["#####", "#....", "####.", "....#", "....#", "#...#", ".###."],
+	6: [".###.", "#....", "#....", "####.", "#...#", "#...#", ".###."],
+}
+
+# bitmap glyphs for the "numerals" style, composed as sequences of I/V below
+const ROMAN_GLYPHS := {
+	"I": ["###", ".#.", ".#.", ".#.", ".#.", ".#.", "###"],
+	"V": ["#...#", "#...#", "#...#", "#...#", ".#.#.", ".#.#.", "..#.."],
+}
+const ROMAN_SEQUENCE := {
+	1: ["I"], 2: ["I", "I"], 3: ["I", "I", "I"],
+	4: ["I", "V"], 5: ["V"], 6: ["V", "I"],
+}
+
 # face outward-normal (local) -> value. Opposite faces sum to 7.
 const FACE_DEFS := [
 	{"n": Vector3(1, 0, 0), "v": 1, "rot": Vector3(0, 90, 0)},
@@ -51,6 +74,7 @@ const HIT_COOLDOWN := 0.12  # ignore the machine-gun of contacts within one boun
 const HIT_SPEED := 2.0  # below this a contact is a soft tumble, not a hit
 
 var skin_name := "ivory"
+var numbering_style := "dots"
 var roll_center := Vector2.ZERO  # world x/z the die is tossed above and settles near
 var _faces: Array = []  # [{v:int, n:Vector3, mi:MeshInstance3D}]
 var _body: MeshInstance3D
@@ -112,11 +136,11 @@ func _build_faces() -> void:
 		q.size = Vector2(SIZE, SIZE) * 0.99
 		mi.mesh = q
 		var mat := StandardMaterial3D.new()
-		mat.albedo_texture = make_face_texture(int(d.v), FACE_TEX, skin_name)
+		mat.albedo_texture = make_face_texture(int(d.v), FACE_TEX, skin_name, numbering_style)
 		_apply_material_type(mat, skin_name)
-		_apply_pip_matte(mat, int(d.v), skin_name)
+		_apply_pip_matte(mat, int(d.v), skin_name, numbering_style)
 		mat.normal_enabled = true
-		mat.normal_texture = make_face_normalmap(int(d.v), FACE_TEX)
+		mat.normal_texture = make_face_normalmap(int(d.v), FACE_TEX, numbering_style)
 		mat.normal_scale = 1.4
 		mi.material_override = mat
 		mi.position = (d.n as Vector3) * (half + 0.002)
@@ -129,16 +153,27 @@ func _build_faces() -> void:
 ## Re-tint body + face art to the named skin (falls back to ivory).
 func set_skin(name: String) -> void:
 	skin_name = name if SKINS.has(name) else "ivory"
+	_refresh_faces()
+
+
+## Re-renders face art in the named marking style (falls back to dots).
+func set_numbering(name: String) -> void:
+	numbering_style = name if NUMBERING_STYLES.has(name) else "dots"
+	_refresh_faces()
+
+
+func _refresh_faces() -> void:
 	if _body == null:
-		return  # not built yet; _ready() will use skin_name
+		return  # not built yet; _ready() will use current skin_name/numbering_style
 	var bmat := _body.material_override as StandardMaterial3D
 	bmat.albedo_color = SKINS[skin_name].body
 	_apply_material_type(bmat, skin_name)
 	for f in _faces:
 		var mat := (f.mi as MeshInstance3D).material_override as StandardMaterial3D
-		mat.albedo_texture = make_face_texture(int(f.v), FACE_TEX, skin_name)
+		mat.albedo_texture = make_face_texture(int(f.v), FACE_TEX, skin_name, numbering_style)
 		_apply_material_type(mat, skin_name)
-		_apply_pip_matte(mat, int(f.v), skin_name)
+		_apply_pip_matte(mat, int(f.v), skin_name, numbering_style)
+		mat.normal_texture = make_face_normalmap(int(f.v), FACE_TEX, numbering_style)
 
 
 ## Base (non-pip) surface roughness for each material type. Single source of
@@ -187,14 +222,15 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 			mat.metallic = 0.0
 
 
-## Kills the shiny highlight/clearcoat over the pips specifically, so the
-## dots read as matte dents rather than catching the same polish as the
-## surrounding face. clearcoat_texture has a fixed R=strength/G=glossiness
-## convention (no channel selector), so roughness is packed into blue instead.
-static func _apply_pip_matte(mat: StandardMaterial3D, value: int, skin_name: String) -> void:
+## Kills the shiny highlight/clearcoat over the markings specifically, so
+## dots/digits/numerals read as matte rather than catching the same polish
+## as the surrounding face. clearcoat_texture has a fixed R=strength/
+## G=glossiness convention (no channel selector), so roughness is packed
+## into blue instead.
+static func _apply_pip_matte(mat: StandardMaterial3D, value: int, skin_name: String, numbering_style: String) -> void:
 	var skin: Dictionary = SKINS.get(skin_name, SKINS["ivory"])
 	var mat_type: String = skin.get("material", "ivory")
-	var detail := make_face_detail_texture(value, FACE_TEX, _base_roughness(mat_type))
+	var detail := make_face_detail_texture(value, FACE_TEX, _base_roughness(mat_type), numbering_style)
 	mat.roughness = 1.0  # texture now fully controls roughness, per pixel
 	mat.roughness_texture = detail
 	mat.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_BLUE
@@ -202,23 +238,68 @@ static func _apply_pip_matte(mat: StandardMaterial3D, value: int, skin_name: Str
 		mat.clearcoat_texture = detail
 
 
-## R = clearcoat strength (1 = configured amount, 0 = none at the pips).
+## R = clearcoat strength (1 = configured amount, 0 = none at the markings).
 ## G = clearcoat glossiness (left at full everywhere).
-## B = absolute roughness (base_roughness, or matte at the pips).
-static func make_face_detail_texture(value: int, tex_size: int, base_roughness: float) -> ImageTexture:
+## B = absolute roughness (base_roughness, or matte at the markings).
+static func make_face_detail_texture(value: int, tex_size: int, base_roughness: float, numbering_style: String) -> ImageTexture:
 	var img := Image.create(tex_size, tex_size, false, Image.FORMAT_RGB8)
 	img.fill(Color(1.0, 1.0, base_roughness))
-	var radius := tex_size / 9.0
-	for g: Vector2 in PIP_LAYOUT[value]:
-		var cx: float = tex_size * (0.25 + 0.25 * g.x)
-		var cy: float = tex_size * (0.25 + 0.25 * g.y)
-		_fill_circle(tex_size, img, cx, cy, radius, Color(0.0, 1.0, 0.92))
+	_paint_markings(img, value, numbering_style, tex_size, Color(0.0, 1.0, 0.92))
 	return ImageTexture.create_from_image(img)
 
 
-## Renders one die face (grain/marbling/brushing + pips) at the given texture size.
-## Shared with ShelfPanel, which uses it at a smaller size for shelf icons.
-static func make_face_texture(value: int, tex_size: int, skin_name := "ivory") -> ImageTexture:
+## Draws the face marking (dot pips, a digit, or a roman numeral) in the
+## given color. Shared by the albedo pass (pip color) and the matte-mask
+## pass (roughness/clearcoat override), so both stay perfectly aligned.
+static func _paint_markings(img: Image, value: int, numbering_style: String, tex_size: int, col: Color) -> void:
+	match numbering_style:
+		"numbers":
+			var rows: Array = DIGIT_GLYPHS[value]
+			var cell := maxi(1, tex_size / 14)
+			var w := 5 * cell
+			var h := 7 * cell
+			_draw_bitmap_glyph(img, rows, (tex_size - w) / 2, (tex_size - h) / 2, cell, col)
+		"numerals":
+			var glyphs: Array = ROMAN_SEQUENCE[value]
+			var cell := maxi(1, tex_size / 16)
+			var total_cols := 0
+			for gk in glyphs:
+				total_cols += String(ROMAN_GLYPHS[gk][0]).length()
+			total_cols += glyphs.size() - 1  # 1-col gap between glyphs
+			var h := 7 * cell
+			var ox := (tex_size - total_cols * cell) / 2
+			var oy := (tex_size - h) / 2
+			for gk in glyphs:
+				_draw_bitmap_glyph(img, ROMAN_GLYPHS[gk], ox, oy, cell, col)
+				ox += (String(ROMAN_GLYPHS[gk][0]).length() + 1) * cell
+		_:
+			var radius := tex_size / 9.0
+			for g: Vector2 in PIP_LAYOUT[value]:
+				var cx: float = tex_size * (0.25 + 0.25 * g.x)
+				var cy: float = tex_size * (0.25 + 0.25 * g.y)
+				_fill_circle(tex_size, img, cx, cy, radius, col)
+
+
+## Blits a bitmap glyph (an array of '#'/'.' row strings) at cell resolution.
+static func _draw_bitmap_glyph(img: Image, rows: Array, ox: int, oy: int, cell: int, col: Color) -> void:
+	var w := img.get_width()
+	var h := img.get_height()
+	for ry in rows.size():
+		var row: String = rows[ry]
+		for rx in row.length():
+			if row[rx] != "#":
+				continue
+			for py in cell:
+				for px in cell:
+					var x := ox + rx * cell + px
+					var y := oy + ry * cell + py
+					if x >= 0 and x < w and y >= 0 and y < h:
+						img.set_pixel(x, y, col)
+
+
+## Renders one die face (grain/marbling/brushing + markings) at the given
+## texture size. Shared with EditorPanel's preview, which uses it smaller.
+static func make_face_texture(value: int, tex_size: int, skin_name := "ivory", numbering_style := "dots") -> ImageTexture:
 	var skin: Dictionary = SKINS.get(skin_name, SKINS["ivory"])
 	var face: Color = skin.face
 	var mat_type: String = skin.get("material", "ivory")
@@ -275,12 +356,7 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory") -
 			img.set_pixel(x, y, col)
 	if mat_type == "gem":
 		_draw_cracks(tex_size, img, 2 + (randi() % 2))
-	var pip: Color = skin.pip
-	var radius := tex_size / 9.0
-	for g: Vector2 in PIP_LAYOUT[value]:
-		var cx: float = tex_size * (0.25 + 0.25 * g.x)
-		var cy: float = tex_size * (0.25 + 0.25 * g.y)
-		_fill_circle(tex_size, img, cx, cy, radius, pip)
+	_paint_markings(img, value, numbering_style, tex_size, skin.pip)
 	return ImageTexture.create_from_image(img)
 
 
@@ -306,9 +382,13 @@ static func _draw_cracks(tex_size: int, img: Image, count: int) -> void:
 
 
 ## Normal map giving each pip a deep spherical dimple (concave dish).
-static func make_face_normalmap(value: int, tex_size: int) -> ImageTexture:
+## Numbers/numerals stay flat -- glyph-shaped dimples aren't worth the
+## complexity, so those styles print flush with the face.
+static func make_face_normalmap(value: int, tex_size: int, numbering_style := "dots") -> ImageTexture:
 	var img := Image.create(tex_size, tex_size, false, Image.FORMAT_RGB8)
 	img.fill(Color(0.5, 0.5, 1.0))  # flat surface
+	if numbering_style != "dots":
+		return ImageTexture.create_from_image(img)
 	var radius := tex_size / 9.0
 	var depth := 1.8  # larger = flatter dimple; smaller = deeper
 	for g: Vector2 in PIP_LAYOUT[value]:

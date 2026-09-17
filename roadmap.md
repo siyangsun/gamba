@@ -6,4 +6,4 @@
 - [x] feat: slightly rounder corners
 - [x] *feat*: give material textures to die (gemstone ones should have a slight marbling, metal ones should be shiny, white/ivory should have a slight yellowish tint near the edges)
 - [x] fix: jade, ruby, and sapphire die send us back to the shelf after editing
-- [ ] *feat*: add different numbering styles (dots, numbers, numerals)
+- [x] *feat*: add different numbering styles (dots, numbers, numerals)
