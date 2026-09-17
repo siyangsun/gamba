@@ -163,6 +163,10 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 			mat.clearcoat = 0.8
 			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 			mat.albedo_color.a = 0.82
+			# bend what's behind instead of just fading it, so it reads as a
+			# gem catching/refracting light rather than plain see-through
+			mat.refraction_enabled = true
+			mat.refraction_scale = 0.09
 		"acrylic":
 			mat.metallic = 0.0
 			mat.roughness = 0.12
