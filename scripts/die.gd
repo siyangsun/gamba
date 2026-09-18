@@ -16,7 +16,8 @@ const FACE_TEX := 128
 # "acrylic" (smooth glossy plastic, no marbling/tint),
 # "anodized" (gold: view-angle shader, one flat color per face that shifts
 # white->yellow->orange->black with angle -- no baked texture, see _make_anodized_material),
-# "tigerseye" (translucent gem with flowing golden-brown chatoyant bands).
+# "tigerseye" (translucent gem with flowing golden-brown chatoyant bands),
+# "glass" (near-clear, very translucent, smooth; white pips).
 const SKINS := {
 	"ivory": {"body": Color(0.88, 0.84, 0.73), "face": Color(0.90, 0.86, 0.75), "pip": Color(0.09, 0.08, 0.07), "material": "ivory"},
 	"onyx": {"body": Color(0.12, 0.12, 0.13), "face": Color(0.16, 0.16, 0.17), "pip": Color(0.90, 0.90, 0.92), "material": "gem"},
@@ -27,6 +28,7 @@ const SKINS := {
 	"tigers_eye": {"body": Color(0.45, 0.27, 0.07), "face": Color(0.75, 0.50, 0.15), "pip": Color(0.98, 0.86, 0.30), "material": "tigerseye"},
 	"sapphire": {"body": Color(0.08, 0.15, 0.50), "face": Color(0.10, 0.20, 0.62), "pip": Color(0.85, 0.89, 0.97), "material": "gem"},
 	"acrylic": {"body": Color(0.93, 0.93, 0.95), "face": Color(0.96, 0.96, 0.98), "pip": Color(0.05, 0.05, 0.06), "material": "acrylic"},
+	"glass": {"body": Color(0.80, 0.86, 0.92), "face": Color(0.82, 0.88, 0.94), "pip": Color(1.0, 1.0, 1.0), "material": "glass"},
 }
 
 # grid positions (col,row in 0..2) of pips for each face value
@@ -263,6 +265,7 @@ static func _base_roughness(mat_type: String) -> float:
 		"metal": return 0.1
 		"stone": return 0.25
 		"tigerseye": return 0.15
+		"glass": return 0.05
 		"gem": return 0.12
 		"acrylic": return 0.12
 		_: return 0.8
@@ -310,6 +313,15 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 			# gem catching/refracting light rather than plain see-through
 			mat.refraction_enabled = true
 			mat.refraction_scale = 0.09
+		"glass":
+			# near-clear pane: very translucent, glossy, strongly refractive
+			mat.metallic = 0.0
+			mat.clearcoat_enabled = true
+			mat.clearcoat = 1.0
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			mat.albedo_color.a = 0.28
+			mat.refraction_enabled = true
+			mat.refraction_scale = 0.12
 		"acrylic":
 			mat.metallic = 0.0
 			mat.clearcoat_enabled = true
@@ -495,6 +507,8 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory", n
 					col = _tigerseye(t)
 					var grain := randf() * 0.02 - 0.01
 					col = Color(col.r + grain, col.g + grain, col.b + grain)
+				"glass":
+					col = face  # flat tint; glass look comes from translucency/refraction
 				"acrylic":
 					# smooth injection-molded plastic: almost no grain
 					var n := randf() * 0.012 - 0.006
