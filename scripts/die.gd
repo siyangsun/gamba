@@ -275,12 +275,6 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 	var skin: Dictionary = SKINS.get(skin_name, SKINS["ivory"])
 	var mat_type: String = skin.get("material", "ivory")
 	mat.roughness = _base_roughness(mat_type)
-	# reset gem/clearcoat-only state so a reused material (the arena die switches
-	# skins in place) doesn't keep a previous gem's translucency/refraction
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
-	mat.albedo_color.a = 1.0
-	mat.refraction_enabled = false
-	mat.clearcoat_enabled = false
 	match mat_type:
 		"metal":
 			# environment has no reflection probe, so a fully metallic BRDF
@@ -659,11 +653,7 @@ func _play_tumble() -> void:
 
 func _finish() -> void:
 	_rolling = false
-	landed.emit(read_up_face())
-
-
-func read_up_face() -> int:
-	return _up_value(global_transform.basis)
+	landed.emit(_up_value(global_transform.basis))
 
 
 func _up_value(basis: Basis) -> int:
