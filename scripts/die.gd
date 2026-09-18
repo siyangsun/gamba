@@ -384,6 +384,12 @@ static func _get_numeral_font() -> Font:
 static func _paint_text(img: Image, text: String, tex_size: int, col: Color) -> void:
 	var rid: RID = _get_numeral_font().get_rids()[0]
 	var ts := TextServerManager.get_primary_interface()
+	# pin rasterization: global oversampling tracks DPI/UI scale and changes as
+	# the app runs, which would render glyphs oversized/off-center into our 1:1
+	# blit -- and that wrong size gets cached per skin. Force 1.0 + no subpixel
+	# so the marking is centered and deterministic regardless of global state.
+	ts.font_set_oversampling(rid, 1.0)
+	ts.font_set_subpixel_positioning(rid, TextServer.SUBPIXEL_POSITIONING_DISABLED)
 	var px_size := int(tex_size * 0.62)
 
 	var glyphs: Array = []

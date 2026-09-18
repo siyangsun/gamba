@@ -7,3 +7,7 @@
 - [x] *feat*: give material textures to die (gemstone ones should have a slight marbling, metal ones should be shiny, white/ivory should have a slight yellowish tint near the edges)
 - [x] fix: jade, ruby, and sapphire die send us back to the shelf after editing
 - [x] *feat*: add different numbering styles (dots, numbers, numerals)
+- [ ] fix: tiger's eye bands should be diagonal
+- [ ] feat: tiger's eye bands should change under the light, widening the highlight based on how much light it's getting
+- [ ] feat: make a very translucent dice skin called glass with white pips
+- [ ] fix: gem dice should be more matte and not translucent anymore
