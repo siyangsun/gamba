@@ -480,13 +480,12 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory", n
 					var g := randf() * 0.03 - 0.015
 					col = Color(clampf(0.86 + g, 0, 1), clampf(0.66 + g, 0, 1), clampf(0.14 + g, 0, 1))
 				"tigerseye":
-					# chatoyant silk: long wavy bands running down the face (varies
-					# mostly across u, gently wavers along v) rather than isotropic
-					# blotches, sampled through the golden-brown ramp
+					# chatoyant silk: long wavy diagonal bands (t varies along
+					# u+v, wavers across u-v) through the golden-brown ramp
 					var u := float(x) / tex_size
 					var v := float(y) / tex_size
-					var wobble := sin(v * 2.2) * 0.28 + sin(v * 5.3) * 0.08
-					var t := clampf(sin((u * 4.5 + wobble) * PI) * 0.5 + 0.5, 0.0, 1.0)
+					var wobble := sin((u - v) * 2.2) * 0.28 + sin((u - v) * 5.3) * 0.08
+					var t := clampf(sin(((u + v) * 3.2 + wobble) * PI) * 0.5 + 0.5, 0.0, 1.0)
 					t = pow(t, 1.7)  # skew toward dark so the deep bands dominate
 					col = _tigerseye(t)
 					var grain := randf() * 0.02 - 0.01
