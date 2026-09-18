@@ -266,7 +266,7 @@ static func _base_roughness(mat_type: String) -> float:
 		"stone": return 0.25
 		"tigerseye": return 0.15
 		"glass": return 0.05
-		"gem": return 0.12
+		"gem": return 0.6
 		"acrylic": return 0.12
 		_: return 0.8
 
@@ -304,15 +304,9 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 			mat.anisotropy = 0.85
 			mat.anisotropy_flowmap = _tigerseye_flowmap()
 		"gem":
-			mat.metallic = 0.02
-			mat.clearcoat_enabled = true
-			mat.clearcoat = 0.8
-			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			mat.albedo_color.a = 0.82
-			# bend what's behind instead of just fading it, so it reads as a
-			# gem catching/refracting light rather than plain see-through
-			mat.refraction_enabled = true
-			mat.refraction_scale = 0.09
+			# opaque and matte now (was translucent/glossy): the marbling and
+			# cracks carry the look without transparency, refraction, or polish
+			mat.metallic = 0.0
 		"glass":
 			# near-clear pane: very translucent, glossy, strongly refractive
 			mat.metallic = 0.0
