@@ -295,6 +295,11 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 			mat.albedo_color.a = 0.9
 			mat.refraction_enabled = true
 			mat.refraction_scale = 0.06
+			# cat's-eye chatoyancy: an anisotropic specular streak that stretches
+			# and widens with the light, aligned to the diagonal bands via flowmap
+			mat.anisotropy_enabled = true
+			mat.anisotropy = 0.85
+			mat.anisotropy_flowmap = _tigerseye_flowmap()
 		"gem":
 			mat.metallic = 0.02
 			mat.clearcoat_enabled = true
@@ -514,6 +519,18 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory", n
 	var tex := ImageTexture.create_from_image(img)
 	_albedo_cache[key] = tex
 	return tex
+
+
+## Constant flowmap steering tiger's-eye anisotropy along the diagonal bands
+## ((1,-1), RG-encoded). Flip r/g if the streak crosses the bands instead.
+static var _tigerseye_flow: ImageTexture
+
+static func _tigerseye_flowmap() -> ImageTexture:
+	if _tigerseye_flow == null:
+		var img := Image.create(4, 4, false, Image.FORMAT_RGB8)
+		img.fill(Color(0.85, 0.15, 0.0))
+		_tigerseye_flow = ImageTexture.create_from_image(img)
+	return _tigerseye_flow
 
 
 ## Tiger's-eye ramp: near-black brown -> deep brown -> bronze -> amber, at
