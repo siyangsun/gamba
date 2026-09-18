@@ -38,6 +38,7 @@ var _audio_controls: HBoxContainer
 
 var _arena_root: Node3D
 var _cupboard_root: Node3D
+var _pleather_tex: NoiseTexture2D  # shared, deterministic; built once on first box
 var _shelf_die_preset: Dictionary = {}  # Die -> DicePreset, for click-to-select
 
 
@@ -204,6 +205,8 @@ func _add_box(world: Node3D, pos: Vector3, size: Vector3, col: Color, visible: b
 ## Procedural bump map (grainy, pock-marked) so the board reads as
 ## rubber/pleather instead of a flat color, with no texture asset needed.
 func _pleather_normal_map() -> NoiseTexture2D:
+	if _pleather_tex != null:
+		return _pleather_tex  # deterministic map; one instance shared by every box
 	var noise := FastNoiseLite.new()
 	noise.noise_type = FastNoiseLite.TYPE_CELLULAR
 	noise.frequency = 0.15
@@ -217,6 +220,7 @@ func _pleather_normal_map() -> NoiseTexture2D:
 	tex.as_normal_map = true
 	tex.bump_strength = 3.0
 	tex.noise = noise
+	_pleather_tex = tex
 	return tex
 
 
@@ -305,13 +309,15 @@ func _refresh_shelf_dice(presets: Array) -> void:
 
 		var p: DicePreset = presets[i]
 		var d := Die.new()
+		# set skin/numbering before entering the tree so _ready builds each face
+		# texture once; setting them after add_child rebuilds all 6 faces twice more
+		d.set_skin(p.theme)
+		d.set_numbering(p.numbering)
 		_cupboard_root.add_child(d)
 		d.freeze = true
 		d.position = Vector3(x, die_y, -0.15)
 		d.rotation_degrees = Vector3(0, 25, 0)
 		d.scale = Vector3.ONE * SHELF_DIE_SCALE
-		d.set_skin(p.theme)
-		d.set_numbering(p.numbering)
 		_shelf_die_preset[d] = p
 		# name placard sits on the plank's very front lip, clear of the die
 		# in front of it (not dangling into the tier below either)

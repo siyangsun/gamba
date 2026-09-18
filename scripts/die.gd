@@ -13,14 +13,18 @@ const FACE_TEX := 128
 # selectable die skins: body tint, face (grain base), pip color, and material type.
 # material types: "ivory" (warm tint near edges), "stone" (spiral-veined, monochrome),
 # "gem" (multi-shade marbling + cracks), "metal" (shiny, brushed),
-# "acrylic" (smooth glossy plastic, no marbling/tint).
+# "acrylic" (smooth glossy plastic, no marbling/tint),
+# "anodized" (gold: view-angle shader, one flat color per face that shifts
+# white->yellow->orange->black with angle -- no baked texture, see _make_anodized_material),
+# "tigerseye" (translucent gem with flowing golden-brown chatoyant bands).
 const SKINS := {
 	"ivory": {"body": Color(0.88, 0.84, 0.73), "face": Color(0.90, 0.86, 0.75), "pip": Color(0.09, 0.08, 0.07), "material": "ivory"},
 	"onyx": {"body": Color(0.12, 0.12, 0.13), "face": Color(0.16, 0.16, 0.17), "pip": Color(0.90, 0.90, 0.92), "material": "gem"},
 	"graphite": {"body": Color(0.26, 0.26, 0.28), "face": Color(0.31, 0.31, 0.33), "pip": Color(0.88, 0.88, 0.90), "material": "stone"},
 	"ruby": {"body": Color(0.50, 0.05, 0.08), "face": Color(0.60, 0.08, 0.11), "pip": Color(0.85, 0.68, 0.25), "material": "gem"},
 	"jade": {"body": Color(0.05, 0.35, 0.22), "face": Color(0.08, 0.42, 0.28), "pip": Color(0.95, 0.89, 0.70), "material": "gem"},
-	"gold": {"body": Color(0.60, 0.47, 0.12), "face": Color(0.72, 0.57, 0.16), "pip": Color(0.10, 0.08, 0.04), "material": "metal"},
+	"gold": {"body": Color(0.60, 0.47, 0.12), "face": Color(0.72, 0.57, 0.16), "pip": Color(0.10, 0.08, 0.04), "material": "anodized"},
+	"tigers_eye": {"body": Color(0.45, 0.27, 0.07), "face": Color(0.75, 0.50, 0.15), "pip": Color(0.98, 0.86, 0.30), "material": "tigerseye"},
 	"sapphire": {"body": Color(0.08, 0.15, 0.50), "face": Color(0.10, 0.20, 0.62), "pip": Color(0.85, 0.89, 0.97), "material": "gem"},
 	"acrylic": {"body": Color(0.93, 0.93, 0.95), "face": Color(0.96, 0.96, 0.98), "pip": Color(0.05, 0.05, 0.06), "material": "acrylic"},
 }
@@ -103,15 +107,12 @@ func _ready() -> void:
 	col.shape = box
 	add_child(col)
 
-	# ivory body slightly inset behind the face quads
+	# body slightly inset behind the face quads
 	var body := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = Vector3.ONE * SIZE * 0.99
 	body.mesh = bm
-	var bmat := StandardMaterial3D.new()
-	bmat.albedo_color = SKINS[skin_name].body
-	_apply_material_type(bmat, skin_name)
-	body.material_override = bmat
+	body.material_override = _make_body_material()
 	add_child(body)
 	_body = body
 
@@ -126,14 +127,7 @@ func _build_faces() -> void:
 		var q := QuadMesh.new()
 		q.size = Vector2(SIZE, SIZE) * 0.99
 		mi.mesh = q
-		var mat := StandardMaterial3D.new()
-		mat.albedo_texture = make_face_texture(int(d.v), FACE_TEX, skin_name, numbering_style)
-		_apply_material_type(mat, skin_name)
-		_apply_pip_matte(mat, int(d.v), skin_name, numbering_style)
-		mat.normal_enabled = true
-		mat.normal_texture = make_face_normalmap(int(d.v), FACE_TEX, numbering_style)
-		mat.normal_scale = 1.4
-		mi.material_override = mat
+		mi.material_override = _make_face_material(int(d.v))
 		mi.position = (d.n as Vector3) * (half + 0.002)
 		var r: Vector3 = d.rot
 		mi.rotation = Vector3(deg_to_rad(r.x), deg_to_rad(r.y), deg_to_rad(r.z))
@@ -156,15 +150,110 @@ func set_numbering(name: String) -> void:
 func _refresh_faces() -> void:
 	if _body == null:
 		return  # not built yet; _ready() will use current skin_name/numbering_style
-	var bmat := _body.material_override as StandardMaterial3D
-	bmat.albedo_color = SKINS[skin_name].body
-	_apply_material_type(bmat, skin_name)
+	# rebuild materials fresh rather than mutate in place: the material class
+	# itself changes between skins (gold is a ShaderMaterial, the rest are
+	# StandardMaterial3D), and textures are cached so this is cheap
+	_body.material_override = _make_body_material()
 	for f in _faces:
-		var mat := (f.mi as MeshInstance3D).material_override as StandardMaterial3D
-		mat.albedo_texture = make_face_texture(int(f.v), FACE_TEX, skin_name, numbering_style)
-		_apply_material_type(mat, skin_name)
-		_apply_pip_matte(mat, int(f.v), skin_name, numbering_style)
-		mat.normal_texture = make_face_normalmap(int(f.v), FACE_TEX, numbering_style)
+		(f.mi as MeshInstance3D).material_override = _make_face_material(int(f.v))
+
+
+## Face material for the current skin: gold gets the view-angle anodized shader,
+## every other skin gets a StandardMaterial3D with baked grain + pips.
+func _make_face_material(value: int) -> Material:
+	if skin_name == "gold":
+		return _make_anodized_material(value)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = make_face_texture(value, FACE_TEX, skin_name, numbering_style)
+	_apply_material_type(mat, skin_name)
+	_apply_pip_matte(mat, value, skin_name, numbering_style)
+	mat.normal_enabled = true
+	mat.normal_texture = make_face_normalmap(value, FACE_TEX, numbering_style)
+	mat.normal_scale = 1.4
+	return mat
+
+
+## Body (inset box behind the faces) material. Value -1 = no markings.
+func _make_body_material() -> Material:
+	if skin_name == "gold":
+		return _make_anodized_material(-1)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = SKINS[skin_name].body
+	_apply_material_type(mat, skin_name)
+	return mat
+
+
+## Gold: a ShaderMaterial whose base color is a single flat tone per face that
+## slides white->yellow->orange->black with the viewing angle (thin-film /
+## anodized look), with the pips composited on top from the shared detail mask.
+func _make_anodized_material(value: int) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = _anodized_shader()
+	if value >= 1:
+		var pip: Color = SKINS["gold"].pip
+		m.set_shader_parameter("has_markings", true)
+		m.set_shader_parameter("pip_color", Vector3(pip.r, pip.g, pip.b))
+		m.set_shader_parameter("detail_tex",
+			make_face_detail_texture(value, FACE_TEX, 0.3, numbering_style))
+		m.set_shader_parameter("normal_tex",
+			make_face_normalmap(value, FACE_TEX, numbering_style))
+	else:
+		m.set_shader_parameter("has_markings", false)
+	return m
+
+
+static var _anodized_shader_res: Shader
+
+static func _anodized_shader() -> Shader:
+	if _anodized_shader_res == null:
+		_anodized_shader_res = Shader.new()
+		_anodized_shader_res.code = ANODIZED_SHADER
+	return _anodized_shader_res
+
+
+# View-angle anodized shader. The face quad's normal is constant, so dot(N,V)
+# is near-uniform across a face -> one flat color at a time that changes as the
+# die turns. detail_tex.r is the marking mask (0 on markings), .b is roughness.
+const ANODIZED_SHADER := "shader_type spatial;
+uniform sampler2D detail_tex : filter_linear;
+uniform sampler2D normal_tex : hint_normal;
+uniform vec3 pip_color = vec3(0.1, 0.08, 0.04);
+uniform bool has_markings = false;
+uniform float angle_gamma = 0.8; // <1 spreads more of the ramp into view
+uniform float white_boost = 0.5; // extra white on the most head-on facets
+
+vec3 anodized(float t) {
+	vec3 c0 = vec3(1.0, 1.0, 1.0);
+	vec3 c1 = vec3(0.92, 0.82, 0.42);
+	vec3 c2 = vec3(0.58, 0.42, 0.09);
+	vec3 c3 = vec3(0.42, 0.17, 0.03);
+	vec3 c4 = vec3(0.02, 0.02, 0.02);
+	t = clamp(t, 0.0, 1.0) * 4.0;
+	if (t < 1.0) return mix(c0, c1, t);
+	if (t < 2.0) return mix(c1, c2, t - 1.0);
+	if (t < 3.0) return mix(c2, c3, t - 2.0);
+	return mix(c3, c4, t - 3.0);
+}
+
+void fragment() {
+	float ndv = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
+	float t = pow(1.0 - ndv, angle_gamma);
+	vec3 base = anodized(t);
+	// extra white flash on the most head-on facets
+	base = mix(base, vec3(1.0), white_boost * smoothstep(0.82, 1.0, ndv));
+	ALBEDO = base;
+	METALLIC = 0.1;
+	ROUGHNESS = 0.5;
+	if (has_markings) {
+		vec4 d = texture(detail_tex, UV);
+		float mask = 1.0 - d.r;
+		ALBEDO = mix(base, pip_color, mask);
+		ROUGHNESS = mix(0.5, 1.0, mask);
+		METALLIC = mix(0.1, 0.0, mask);
+		NORMAL_MAP = texture(normal_tex, UV).rgb;
+	}
+}
+"
 
 
 ## Base (non-pip) surface roughness for each material type. Single source of
@@ -173,6 +262,7 @@ static func _base_roughness(mat_type: String) -> float:
 	match mat_type:
 		"metal": return 0.1
 		"stone": return 0.25
+		"tigerseye": return 0.15
 		"gem": return 0.12
 		"acrylic": return 0.12
 		_: return 0.8
@@ -185,6 +275,12 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 	var skin: Dictionary = SKINS.get(skin_name, SKINS["ivory"])
 	var mat_type: String = skin.get("material", "ivory")
 	mat.roughness = _base_roughness(mat_type)
+	# reset gem/clearcoat-only state so a reused material (the arena die switches
+	# skins in place) doesn't keep a previous gem's translucency/refraction
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_DISABLED
+	mat.albedo_color.a = 1.0
+	mat.refraction_enabled = false
+	mat.clearcoat_enabled = false
 	match mat_type:
 		"metal":
 			# environment has no reflection probe, so a fully metallic BRDF
@@ -195,6 +291,16 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 			mat.metallic = 0.05
 			mat.clearcoat_enabled = true
 			mat.clearcoat = 0.5
+		"tigerseye":
+			# translucent chatoyant gem: like gem but a touch more opaque and
+			# glossier so the golden banding still reads through it
+			mat.metallic = 0.05
+			mat.clearcoat_enabled = true
+			mat.clearcoat = 0.7
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			mat.albedo_color.a = 0.9
+			mat.refraction_enabled = true
+			mat.refraction_scale = 0.06
 		"gem":
 			mat.metallic = 0.02
 			mat.clearcoat_enabled = true
@@ -263,7 +369,11 @@ static func _paint_markings(img: Image, value: int, numbering_style: String, tex
 
 static func _get_numeral_font() -> Font:
 	if _numeral_font == null:
-		_numeral_font = load(NUMERAL_FONT_PATH)
+		# faux-bold the serif via a FontVariation; no bold weight ships in fonts/
+		var fv := FontVariation.new()
+		fv.base_font = load(NUMERAL_FONT_PATH)
+		fv.variation_embolden = 0.6
+		_numeral_font = fv
 	return _numeral_font
 
 
@@ -363,6 +473,24 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory", n
 						clampf(face.r + streak, 0, 1),
 						clampf(face.g + streak, 0, 1),
 						clampf(face.b + streak, 0, 1))
+				"anodized":
+					# flat swatch for the 2D editor preview only; the real 3D gold
+					# is a ShaderMaterial whose color shifts with view angle and
+					# never samples this texture (see _make_anodized_material)
+					var g := randf() * 0.03 - 0.015
+					col = Color(clampf(0.86 + g, 0, 1), clampf(0.66 + g, 0, 1), clampf(0.14 + g, 0, 1))
+				"tigerseye":
+					# chatoyant silk: long wavy bands running down the face (varies
+					# mostly across u, gently wavers along v) rather than isotropic
+					# blotches, sampled through the golden-brown ramp
+					var u := float(x) / tex_size
+					var v := float(y) / tex_size
+					var wobble := sin(v * 2.2) * 0.28 + sin(v * 5.3) * 0.08
+					var t := clampf(sin((u * 4.5 + wobble) * PI) * 0.5 + 0.5, 0.0, 1.0)
+					t = pow(t, 1.7)  # skew toward dark so the deep bands dominate
+					col = _tigerseye(t)
+					var grain := randf() * 0.02 - 0.01
+					col = Color(col.r + grain, col.g + grain, col.b + grain)
 				"acrylic":
 					# smooth injection-molded plastic: almost no grain
 					var n := randf() * 0.012 - 0.006
@@ -387,6 +515,22 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory", n
 	var tex := ImageTexture.create_from_image(img)
 	_albedo_cache[key] = tex
 	return tex
+
+
+## Tiger's-eye ramp: near-black brown -> deep brown -> bronze -> amber, at
+## t in [0,1]. No pale/beige top stop; dark end is weighted by the caller.
+static func _tigerseye(t: float) -> Color:
+	const STOPS := [
+		Color(0.09, 0.04, 0.01),
+		Color(0.30, 0.16, 0.03),
+		Color(0.60, 0.37, 0.09),
+		Color(0.90, 0.64, 0.20),
+	]
+	t = clampf(t, 0.0, 1.0) * (STOPS.size() - 1)
+	var i := int(t)
+	if i >= STOPS.size() - 1:
+		return STOPS[STOPS.size() - 1]
+	return STOPS[i].lerp(STOPS[i + 1], t - i)
 
 
 ## Scratches a couple of jagged fracture lines into a gem face texture,
