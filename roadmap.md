@@ -11,4 +11,4 @@
 - [x] feat: tiger's eye bands should change under the light, widening the highlight based on how much light it's getting
 - [x] feat: make a very translucent dice skin called glass with white pips
 - [x] fix: gem dice should be more matte and not translucent anymore
-- [ ] ui: UI should look more windows 2000, chessmaster, heroes 3. mostly gray and boxy instead of warm and yellowish.
+- [x] ui: UI should look more windows 2000, chessmaster, heroes 3. mostly gray and boxy instead of warm and yellowish.

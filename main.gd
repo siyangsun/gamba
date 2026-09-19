@@ -497,40 +497,40 @@ func _slug(s: String) -> String:
 	return out if has_alnum else "die"
 
 
-# --- theme (XP-ish grey/beige, slightly rounded corners) ------------------
+# --- theme (Windows 2000 / Chessmaster / Heroes 3: gray, boxy, sharp corners) --
 
 func _build_theme() -> Theme:
 	var t := Theme.new()
 	t.default_font_size = 16
 	# body font: warm old-style serif for everything except page titles
 	t.default_font = load("res://fonts/EBGaramond-Regular.ttf")
-	var beige := Color8(236, 233, 216)
-	var dark := Color8(113, 111, 100)
+	var gray := Color8(196, 196, 200)
+	var dark := Color8(64, 64, 68)
 
-	var panel := _flat(beige, dark, 2)
+	var panel := _flat(gray, dark, 2)
 	t.set_stylebox("panel", "Panel", panel)
 	t.set_stylebox("panel", "PanelContainer", panel)
 
-	var btn := _flat(Color8(225, 223, 205), dark, 2)
+	var btn := _flat(Color8(208, 208, 212), dark, 2)
 	t.set_stylebox("normal", "Button", btn)
-	var hov := _flat(Color8(238, 236, 222), dark, 2)
+	var hov := _flat(Color8(222, 222, 226), dark, 2)
 	t.set_stylebox("hover", "Button", hov)
-	var prs := _flat(Color8(200, 198, 182), dark, 2)
+	var prs := _flat(Color8(176, 176, 180), dark, 2)
 	t.set_stylebox("pressed", "Button", prs)
-	t.set_color("font_color", "Button", Color8(20, 18, 10))
+	t.set_color("font_color", "Button", Color8(16, 16, 18))
 
 	var le := _flat(Color.WHITE, dark, 2)
 	t.set_stylebox("normal", "LineEdit", le)
-	t.set_stylebox("focus", "LineEdit", _flat(Color.WHITE, Color8(0, 84, 227), 2))
-	t.set_color("font_color", "LineEdit", Color8(30, 28, 20))
+	t.set_stylebox("focus", "LineEdit", _flat(Color.WHITE, Color8(10, 36, 106), 2))
+	t.set_color("font_color", "LineEdit", Color8(16, 16, 18))
 
-	t.set_color("font_color", "Label", Color8(30, 28, 20))
+	t.set_color("font_color", "Label", Color8(16, 16, 18))
 
 	t.set_stylebox("normal", "OptionButton", btn)
 	t.set_stylebox("hover", "OptionButton", hov)
 	t.set_stylebox("pressed", "OptionButton", prs)
-	t.set_color("font_color", "OptionButton", Color8(20, 18, 10))
-	t.set_color("font_color", "PopupMenu", Color8(20, 18, 10))
+	t.set_color("font_color", "OptionButton", Color8(16, 16, 18))
+	t.set_color("font_color", "PopupMenu", Color8(16, 16, 18))
 
 	# header font: ornate display serif for page titles only
 	t.set_type_variation("Header", "Label")
@@ -544,6 +544,6 @@ func _flat(bg: Color, border: Color, bw: int) -> StyleBoxFlat:
 	s.bg_color = bg
 	s.set_border_width_all(bw)
 	s.border_color = border
-	s.set_corner_radius_all(3)
+	s.set_corner_radius_all(0)
 	s.set_content_margin_all(8)
 	return s
