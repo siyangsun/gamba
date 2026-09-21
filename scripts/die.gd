@@ -12,7 +12,9 @@ const FACE_TEX := 128
 
 # selectable die skins: body tint, face (grain base), pip color, and material type.
 # material types: "ivory" (warm tint near edges), "stone" (spiral-veined, monochrome),
-# "gem" (multi-shade marbling + cracks), "metal" (shiny, brushed),
+# "gem" (multi-shade marbling + cracks, opaque), "darkgem" (same marbling/cracks/
+# shine as "gem" but slightly translucent -- an onyx-like dark stone with a hint
+# of its named color), "metal" (shiny, brushed),
 # "acrylic" (smooth glossy plastic, no marbling/tint),
 # "anodized" (gold: view-angle shader, one flat color per face that shifts
 # white->yellow->orange->black with angle -- no baked texture, see _make_anodized_material),
@@ -23,11 +25,13 @@ const SKINS := {
 	"ivory": {"body": Color(0.88, 0.84, 0.73), "face": Color(0.90, 0.86, 0.75), "pip": Color(0.09, 0.08, 0.07), "material": "ivory"},
 	"onyx": {"body": Color(0.12, 0.12, 0.13), "face": Color(0.16, 0.16, 0.17), "pip": Color(0.90, 0.90, 0.92), "material": "gem"},
 	"graphite": {"body": Color(0.26, 0.26, 0.28), "face": Color(0.31, 0.31, 0.33), "pip": Color(0.88, 0.88, 0.90), "material": "stone"},
-	"ruby": {"body": Color(0.50, 0.05, 0.08), "face": Color(0.60, 0.08, 0.11), "pip": Color(0.85, 0.68, 0.25), "material": "gem"},
+	"jasper": {"body": Color(0.50, 0.05, 0.08), "face": Color(0.60, 0.08, 0.11), "pip": Color(0.85, 0.68, 0.25), "material": "gem"},
+	"ruby": {"body": Color(0.16, 0.04, 0.05), "face": Color(0.20, 0.06, 0.07), "pip": Color(0.85, 0.68, 0.25), "material": "darkgem"},
 	"jade": {"body": Color(0.05, 0.35, 0.22), "face": Color(0.08, 0.42, 0.28), "pip": Color(0.95, 0.89, 0.70), "material": "gem"},
 	"gold": {"body": Color(0.60, 0.47, 0.12), "face": Color(0.72, 0.57, 0.16), "pip": Color(0.10, 0.08, 0.04), "material": "anodized"},
 	"tigers_eye": {"body": Color(0.45, 0.27, 0.07), "face": Color(0.75, 0.50, 0.15), "pip": Color(0.98, 0.86, 0.30), "material": "tigerseye"},
-	"sapphire": {"body": Color(0.08, 0.15, 0.50), "face": Color(0.10, 0.20, 0.62), "pip": Color(0.85, 0.89, 0.97), "material": "gem"},
+	"lapis": {"body": Color(0.08, 0.15, 0.50), "face": Color(0.10, 0.20, 0.62), "pip": Color(0.85, 0.89, 0.97), "material": "gem"},
+	"sapphire": {"body": Color(0.05, 0.06, 0.17), "face": Color(0.07, 0.08, 0.21), "pip": Color(0.85, 0.89, 0.97), "material": "darkgem"},
 	"acrylic": {"body": Color(0.93, 0.93, 0.95), "face": Color(0.96, 0.96, 0.98), "pip": Color(0.05, 0.05, 0.06), "material": "acrylic"},
 	"glass": {"body": Color(0.80, 0.86, 0.92), "face": Color(0.82, 0.88, 0.94), "pip": Color(1.0, 1.0, 1.0), "material": "glass"},
 }
@@ -162,13 +166,15 @@ func _refresh_faces() -> void:
 
 
 ## Face material for the current skin: gold gets the view-angle anodized
-## shader, tiger's eye gets the sweeping chatoyant-band shader, every other
-## skin gets a StandardMaterial3D with baked grain + pips.
+## shader; tiger's eye and the dark gems (ruby, sapphire) get the sweeping
+## chatoyant-band shader; every other skin gets a StandardMaterial3D with
+## baked grain + pips.
 func _make_face_material(value: int) -> Material:
 	if skin_name == "gold":
 		return _make_anodized_material(value)
-	if skin_name == "tigers_eye":
-		return _make_tigerseye_material(value)
+	var mat_type: String = SKINS.get(skin_name, SKINS["ivory"]).get("material", "ivory")
+	if mat_type == "tigerseye" or mat_type == "darkgem":
+		return _make_sweepgem_material(value)
 	var mat := StandardMaterial3D.new()
 	mat.albedo_texture = make_face_texture(value, FACE_TEX, skin_name, numbering_style)
 	_apply_material_type(mat, skin_name)
@@ -274,25 +280,42 @@ void fragment() {
 "
 
 
-## Tiger's eye: a ShaderMaterial that draws a bright chatoyant band on top of
-## the baked marbled texture. Real chatoyancy is a band gliding across a
-## *curved* cabochon as you tilt it; our faces are flat, so a physically
-## accurate anisotropic BRDF only gives a faint, hard-to-catch shimmer tied to
-## one exact light angle. Instead this explicitly slides the band's position
-## with dot(NORMAL, VIEW) -- the same per-face "angle" signal the gold shader
-## uses -- so it's a guaranteed, obvious sweep as the die turns, not a subtle
-## one that depends on the light landing just right.
-func _make_tigerseye_material(value: int) -> ShaderMaterial:
+## Sweeping chatoyant-band shader, shared by tiger's eye and the dark gems
+## (ruby, sapphire): a bright accent band explicitly slides across each face
+## based on view angle instead of relying on a physically-based anisotropic
+## BRDF, which only gives a faint, hard-to-catch shimmer tied to one exact
+## light angle. Slides with dot(NORMAL, VIEW) -- the same per-face "angle"
+## signal the gold shader uses -- so it's a guaranteed, obvious sweep as the
+## die turns. See TIGERSEYE_SHADER for the overlay/accentuate() blending.
+func _make_sweepgem_material(value: int) -> ShaderMaterial:
 	var m := ShaderMaterial.new()
 	m.shader = _tigerseye_shader()
 	m.set_shader_parameter("albedo_tex", make_face_texture(value, FACE_TEX, skin_name, numbering_style))
-	var pip: Color = SKINS["tigers_eye"].pip
+	var skin: Dictionary = SKINS[skin_name]
+	var pip: Color = skin.pip
 	m.set_shader_parameter("pip_color", Vector3(pip.r, pip.g, pip.b))
+	var colors := _sweep_gem_colors(skin_name)
+	m.set_shader_parameter("glow_color", colors.glow)
+	m.set_shader_parameter("accent_color", colors.accent)
+	var mat_type: String = skin.material
 	m.set_shader_parameter("detail_tex",
-		make_face_detail_texture(value, FACE_TEX, _base_roughness("tigerseye"), numbering_style, "tigerseye"))
+		make_face_detail_texture(value, FACE_TEX, _base_roughness(mat_type), numbering_style, mat_type))
 	m.set_shader_parameter("normal_tex",
 		make_face_normalmap(value, FACE_TEX, numbering_style))
 	return m
+
+
+## Per-skin glow/accent colors for the sweep-gem shader: glow tints the wide
+## Overlay band, accent is the narrow hot core's target hue (dazzling and
+## pure, not just a brighter version of glow).
+static func _sweep_gem_colors(skin_name: String) -> Dictionary:
+	match skin_name:
+		"ruby":
+			return {"glow": Vector3(0.85, 0.12, 0.12), "accent": Vector3(1.0, 0.05, 0.08)}
+		"sapphire":
+			return {"glow": Vector3(0.15, 0.32, 0.85), "accent": Vector3(0.15, 0.35, 1.0)}
+		_:
+			return {"glow": Vector3(1.0, 0.83, 0.38), "accent": Vector3(1.0, 0.95, 0.25)}
 
 
 static var _tigerseye_shader_res: Shader
@@ -392,7 +415,7 @@ static func _base_roughness(mat_type: String) -> float:
 		# visibly shifting) across a much wider range of orientations.
 		"tigerseye": return 0.26
 		"glass": return 0.05
-		"gem": return 0.16
+		"gem", "darkgem": return 0.16
 		"acrylic": return 0.12
 		_: return 0.8
 
@@ -439,6 +462,18 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 			mat.metallic_specular = 1.0
 			mat.clearcoat_enabled = true
 			mat.clearcoat = 0.5
+		"darkgem":
+			# same shine/marbling/sparkle as "gem" (onyx-like), but slightly
+			# translucent -- a dark stone with a hint of its named color
+			# showing through, rather than fully opaque like onyx itself.
+			mat.metallic = 0.0
+			mat.metallic_specular = 1.0
+			mat.clearcoat_enabled = true
+			mat.clearcoat = 0.5
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			mat.albedo_color.a = 0.88
+			mat.refraction_enabled = true
+			mat.refraction_scale = 0.07
 		"glass":
 			# near-clear pane: very translucent, glossy, strongly refractive
 			mat.metallic = 0.0
@@ -493,7 +528,7 @@ static func make_face_detail_texture(value: int, tex_size: int, base_roughness: 
 	if _detail_cache.has(key):
 		return _detail_cache[key]
 	var img := Image.create(tex_size, tex_size, false, Image.FORMAT_RGB8)
-	if mat_type == "gem":
+	if mat_type == "gem" or mat_type == "darkgem":
 		# raw-cut sparkle: small, dense pocked patches break up the shine so
 		# it doesn't read as a perfectly flat polish.
 		for y in tex_size:
@@ -619,7 +654,7 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory", n
 					col = face.lerp(Color(1, 1, 1), streak * 0.35)
 					var grain := randf() * 0.03 - 0.015
 					col = Color(col.r + grain, col.g + grain, col.b + grain)
-				"gem":
+				"gem", "darkgem":
 					# smoky depth marbling: layered turbulence blends the base color
 					# toward near-black in cloudy bands, unlike the stone spiral veins
 					var u := float(x) / tex_size
@@ -690,7 +725,7 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory", n
 						clampf(face.g + n + edge * 0.08, 0, 1),
 						clampf(face.b + n - edge * 0.05, 0, 1))
 			img.set_pixel(x, y, col)
-	if mat_type == "gem":
+	if mat_type == "gem" or mat_type == "darkgem":
 		_draw_cracks(tex_size, img, 2 + (randi() % 2))
 	_paint_markings(img, value, numbering_style, tex_size, skin.pip)
 	var tex := ImageTexture.create_from_image(img)
