@@ -16,7 +16,8 @@ const FACE_TEX := 128
 # "acrylic" (smooth glossy plastic, no marbling/tint),
 # "anodized" (gold: view-angle shader, one flat color per face that shifts
 # white->yellow->orange->black with angle -- no baked texture, see _make_anodized_material),
-# "tigerseye" (translucent gem with flowing golden-brown chatoyant bands),
+# "tigerseye" (opaque golden-brown gem, faces use a view-angle shader with a
+# chatoyant band that sweeps across as the die turns -- see _make_tigerseye_material),
 # "glass" (near-clear, very translucent, smooth; white pips).
 const SKINS := {
 	"ivory": {"body": Color(0.88, 0.84, 0.73), "face": Color(0.90, 0.86, 0.75), "pip": Color(0.09, 0.08, 0.07), "material": "ivory"},
@@ -160,11 +161,14 @@ func _refresh_faces() -> void:
 		(f.mi as MeshInstance3D).material_override = _make_face_material(int(f.v))
 
 
-## Face material for the current skin: gold gets the view-angle anodized shader,
-## every other skin gets a StandardMaterial3D with baked grain + pips.
+## Face material for the current skin: gold gets the view-angle anodized
+## shader, tiger's eye gets the sweeping chatoyant-band shader, every other
+## skin gets a StandardMaterial3D with baked grain + pips.
 func _make_face_material(value: int) -> Material:
 	if skin_name == "gold":
 		return _make_anodized_material(value)
+	if skin_name == "tigers_eye":
+		return _make_tigerseye_material(value)
 	var mat := StandardMaterial3D.new()
 	mat.albedo_texture = make_face_texture(value, FACE_TEX, skin_name, numbering_style)
 	_apply_material_type(mat, skin_name)
@@ -224,11 +228,20 @@ uniform bool has_markings = false;
 uniform float angle_gamma = 0.8; // <1 spreads more of the ramp into view
 uniform float white_boost = 0.5; // extra white on the most head-on facets
 
+// Photoshop-style Overlay blend: preserves the ramp's own contrast/color
+// instead of just fading toward flat white.
+float overlay1(float b, float s) {
+	return b < 0.5 ? 2.0 * b * s : 1.0 - 2.0 * (1.0 - b) * (1.0 - s);
+}
+vec3 overlay(vec3 base, vec3 blend) {
+	return vec3(overlay1(base.r, blend.r), overlay1(base.g, blend.g), overlay1(base.b, blend.b));
+}
+
 vec3 anodized(float t) {
 	vec3 c0 = vec3(1.0, 1.0, 1.0);
-	vec3 c1 = vec3(0.92, 0.82, 0.42);
-	vec3 c2 = vec3(0.58, 0.42, 0.09);
-	vec3 c3 = vec3(0.42, 0.17, 0.03);
+	vec3 c1 = vec3(0.93, 0.76, 0.36);
+	vec3 c2 = vec3(0.62, 0.38, 0.07);
+	vec3 c3 = vec3(0.45, 0.15, 0.02);
 	vec3 c4 = vec3(0.02, 0.02, 0.02);
 	t = clamp(t, 0.0, 1.0) * 4.0;
 	if (t < 1.0) return mix(c0, c1, t);
@@ -241,8 +254,11 @@ void fragment() {
 	float ndv = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
 	float t = pow(1.0 - ndv, angle_gamma);
 	vec3 base = anodized(t);
-	// extra white flash on the most head-on facets
-	base = mix(base, vec3(1.0), white_boost * smoothstep(0.82, 1.0, ndv));
+	// extra flash on the most head-on facets, via Overlay instead of a flat
+	// white wash, so the ramp's own color and contrast punch through instead
+	// of fading everything toward plain white.
+	float flash = white_boost * smoothstep(0.82, 1.0, ndv);
+	base = mix(base, overlay(base, vec3(1.0)), flash);
 	ALBEDO = base;
 	METALLIC = 0.1;
 	ROUGHNESS = 0.5;
@@ -258,15 +274,125 @@ void fragment() {
 "
 
 
+## Tiger's eye: a ShaderMaterial that draws a bright chatoyant band on top of
+## the baked marbled texture. Real chatoyancy is a band gliding across a
+## *curved* cabochon as you tilt it; our faces are flat, so a physically
+## accurate anisotropic BRDF only gives a faint, hard-to-catch shimmer tied to
+## one exact light angle. Instead this explicitly slides the band's position
+## with dot(NORMAL, VIEW) -- the same per-face "angle" signal the gold shader
+## uses -- so it's a guaranteed, obvious sweep as the die turns, not a subtle
+## one that depends on the light landing just right.
+func _make_tigerseye_material(value: int) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = _tigerseye_shader()
+	m.set_shader_parameter("albedo_tex", make_face_texture(value, FACE_TEX, skin_name, numbering_style))
+	var pip: Color = SKINS["tigers_eye"].pip
+	m.set_shader_parameter("pip_color", Vector3(pip.r, pip.g, pip.b))
+	m.set_shader_parameter("detail_tex",
+		make_face_detail_texture(value, FACE_TEX, _base_roughness("tigerseye"), numbering_style, "tigerseye"))
+	m.set_shader_parameter("normal_tex",
+		make_face_normalmap(value, FACE_TEX, numbering_style))
+	return m
+
+
+static var _tigerseye_shader_res: Shader
+
+static func _tigerseye_shader() -> Shader:
+	if _tigerseye_shader_res == null:
+		_tigerseye_shader_res = Shader.new()
+		_tigerseye_shader_res.code = TIGERSEYE_SHADER
+	return _tigerseye_shader_res
+
+
+const TIGERSEYE_SHADER := "shader_type spatial;
+uniform sampler2D albedo_tex : source_color, filter_linear;
+uniform sampler2D detail_tex : filter_linear;
+uniform sampler2D normal_tex : hint_normal;
+uniform vec3 pip_color = vec3(0.98, 0.86, 0.30);
+uniform vec3 glow_color = vec3(1.0, 0.83, 0.38);
+uniform vec3 accent_color = vec3(1.0, 0.95, 0.25); // dazzling yellow, not amber/orange
+uniform float sweep_range = 2.4; // how far dot(N,V) slides the band across the face
+uniform float band_width = 0.58; // smaller = narrower, sharper streak
+uniform float accent_width = 0.25; // much narrower than band_width: a hot core, not the whole band
+
+// Photoshop-style Overlay blend: darkens/lightens relative to what's already
+// there (multiply in the shadows, screen in the highlights) instead of just
+// painting a flat wash of glow_color on top, which crushed the existing
+// marbling's own contrast and color.
+float overlay1(float b, float s) {
+	return b < 0.5 ? 2.0 * b * s : 1.0 - 2.0 * (1.0 - b) * (1.0 - s);
+}
+vec3 overlay(vec3 base, vec3 blend) {
+	return vec3(overlay1(base.r, blend.r), overlay1(base.g, blend.g), overlay1(base.b, blend.b));
+}
+
+// Pulls a color's hue toward `hue` (a fixed, deliberately-yellow target,
+// not whatever amber/orange the overlay already landed on) and boosts
+// brightness on top -- a dazzling yellow flash instead of just a brighter
+// version of the existing orange (unlike Color Dodge, which desaturates
+// toward whichever blend channel is largest instead of a chosen hue).
+vec3 accentuate(vec3 c, vec3 hue, float hue_pull, float bright_mul) {
+	vec3 shifted = mix(c, hue, hue_pull);
+	return clamp(shifted * bright_mul, 0.0, 1.0);
+}
+
+void fragment() {
+	vec3 base = texture(albedo_tex, UV).rgb;
+
+	// cat's-eye sweep: the band's position along the diagonal slides with
+	// view angle, so it visibly glides across the face as the die turns.
+	// Centered on ndv=0.5 (a typically-facing-ish angle) so the band's
+	// range of travel actually lands on-face for normal viewing, not just
+	// at extreme edge-on grazing angles.
+	float ndv = clamp(dot(normalize(NORMAL), normalize(VIEW)), -1.0, 1.0);
+	float diag = UV.x - UV.y;
+	float sweep = diag - (ndv - 0.5) * sweep_range;
+	float glow = exp(-pow(sweep / band_width, 2.0));
+	glow = clamp(pow(glow, 0.45) * 2.7, 0.0, 1.0);
+	// much narrower than the main band: a tiny hot core right at the streak's
+	// peak, not spread across the whole amber band like the main glow
+	float accent_glow = exp(-pow(sweep / accent_width, 2.0));
+
+	// triple overlay for strong contrast punch, plus a narrow dazzling-yellow
+	// flash right at the peak. Strength scales with how bright the overlay
+	// has already made this pixel: barely anything on the black bands (stays
+	// mostly black), but a strong accentuation on the already-lit amber ones
+	// instead of doing nothing there.
+	vec3 overlaid = overlay(overlay(overlay(base, glow_color), glow_color), glow_color);
+	float lit = dot(overlaid, vec3(0.299, 0.587, 0.114));
+	float accent_amount = accent_glow * mix(0.03, 0.3, smoothstep(0.08, 0.3, lit));
+	vec3 accented = accentuate(overlaid, accent_color, 0.75, 1.4);
+	vec3 col = mix(base, mix(overlaid, accented, accent_amount), glow);
+	float rough = mix(0.28, 0.02, glow);
+	float metal = 0.05;
+
+	vec4 d = texture(detail_tex, UV);
+	float mask = 1.0 - d.r; // 1 on the pips
+	col = mix(col, pip_color, mask);
+	rough = mix(rough, 1.0, mask);
+	metal = mix(metal, 0.0, mask);
+
+	ALBEDO = col;
+	ROUGHNESS = rough;
+	METALLIC = metal;
+	NORMAL_MAP = texture(normal_tex, UV).rgb;
+}
+"
+
+
 ## Base (non-pip) surface roughness for each material type. Single source of
 ## truth shared between the material scalar and the per-face roughness map.
 static func _base_roughness(mat_type: String) -> float:
 	match mat_type:
 		"metal": return 0.1
 		"stone": return 0.25
-		"tigerseye": return 0.15
+		# wider than a pinpoint hotspot: with one fixed light and no reflection
+		# probe, a tight streak only ever catches the light at one exact angle.
+		# softening the lobe trades peak brightness for being visible (and
+		# visibly shifting) across a much wider range of orientations.
+		"tigerseye": return 0.26
 		"glass": return 0.05
-		"gem": return 0.6
+		"gem": return 0.16
 		"acrylic": return 0.12
 		_: return 0.8
 
@@ -289,24 +415,30 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 			mat.clearcoat_enabled = true
 			mat.clearcoat = 0.5
 		"tigerseye":
-			# translucent chatoyant gem: like gem but a touch more opaque and
-			# glossier so the golden banding still reads through it
+			# opaque chatoyant gem. No reflection probe in this scene, so a
+			# plain specular highlight is nearly invisible -- boost it via
+			# metallic_specular (the same trick "metal" uses) and keep
+			# clearcoat light so it doesn't bury the anisotropic streak under
+			# its own wide isotropic sheen.
 			mat.metallic = 0.05
+			mat.metallic_specular = 1.0
 			mat.clearcoat_enabled = true
-			mat.clearcoat = 0.7
-			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			mat.albedo_color.a = 0.9
-			mat.refraction_enabled = true
-			mat.refraction_scale = 0.06
+			mat.clearcoat = 0.25
 			# cat's-eye chatoyancy: an anisotropic specular streak that stretches
 			# and widens with the light, aligned to the diagonal bands via flowmap
 			mat.anisotropy_enabled = true
-			mat.anisotropy = 0.85
+			mat.anisotropy = 1.0
 			mat.anisotropy_flowmap = _tigerseye_flowmap()
 		"gem":
-			# opaque and matte now (was translucent/glossy): the marbling and
-			# cracks carry the look without transparency, refraction, or polish
+			# opaque, and shiny rather than flat-matte: a low base roughness plus
+			# a pocked per-pixel roughness texture (see make_face_detail_texture)
+			# reads as a raw-cut gem catching light unevenly, not polished glass.
+			# metallic_specular boosts the Fresnel reflectance so facets still
+			# catch a little light off-hotspot, not just at the one direct angle.
 			mat.metallic = 0.0
+			mat.metallic_specular = 1.0
+			mat.clearcoat_enabled = true
+			mat.clearcoat = 0.5
 		"glass":
 			# near-clear pane: very translucent, glossy, strongly refractive
 			mat.metallic = 0.0
@@ -332,7 +464,7 @@ static func _apply_material_type(mat: StandardMaterial3D, skin_name: String) -> 
 static func _apply_pip_matte(mat: StandardMaterial3D, value: int, skin_name: String, numbering_style: String) -> void:
 	var skin: Dictionary = SKINS.get(skin_name, SKINS["ivory"])
 	var mat_type: String = skin.get("material", "ivory")
-	var detail := make_face_detail_texture(value, FACE_TEX, _base_roughness(mat_type), numbering_style)
+	var detail := make_face_detail_texture(value, FACE_TEX, _base_roughness(mat_type), numbering_style, mat_type)
 	mat.roughness = 1.0  # texture now fully controls roughness, per pixel
 	mat.roughness_texture = detail
 	mat.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_BLUE
@@ -340,15 +472,36 @@ static func _apply_pip_matte(mat: StandardMaterial3D, value: int, skin_name: Str
 		mat.clearcoat_texture = detail
 
 
+## Small-scale turbulence for a raw-cut gem's sparkle/pock texture (0..1).
+## Independent frequency from the color marbling, so pocks don't just trace
+## the color bands. Shared between the albedo speckle pass and the roughness
+## texture pass so a glossy pock (low roughness) lands on the same pixel as
+## its bright fleck -- the sparkle reads even off the specular hotspot.
+static func _gem_pock(x: int, y: int, tex_size: int) -> float:
+	var u := float(x) / tex_size
+	var v := float(y) / tex_size
+	var n := sin((u * 23.0 + sin(v * 17.0) * 3.0) * PI) * sin((v * 19.0 + sin(u * 13.0) * 3.0) * PI)
+	return clampf(n, 0.0, 1.0)
+
+
 ## R = clearcoat strength (1 = configured amount, 0 = none at the markings).
 ## G = clearcoat glossiness (left at full everywhere).
-## B = absolute roughness (base_roughness, or matte at the markings).
-static func make_face_detail_texture(value: int, tex_size: int, base_roughness: float, numbering_style: String) -> ImageTexture:
-	var key := "%s|%d|%d|%.3f" % [numbering_style, value, tex_size, base_roughness]
+## B = absolute roughness (base_roughness, or matte at the markings; for gems,
+## a pocked per-pixel scatter around base_roughness instead of a flat fill).
+static func make_face_detail_texture(value: int, tex_size: int, base_roughness: float, numbering_style: String, mat_type := "") -> ImageTexture:
+	var key := "%s|%d|%d|%.3f|%s" % [numbering_style, value, tex_size, base_roughness, mat_type]
 	if _detail_cache.has(key):
 		return _detail_cache[key]
 	var img := Image.create(tex_size, tex_size, false, Image.FORMAT_RGB8)
-	img.fill(Color(1.0, 1.0, base_roughness))
+	if mat_type == "gem":
+		# raw-cut sparkle: small, dense pocked patches break up the shine so
+		# it doesn't read as a perfectly flat polish.
+		for y in tex_size:
+			for x in tex_size:
+				var pock := _gem_pock(x, y, tex_size)
+				img.set_pixel(x, y, Color(1.0, 1.0, clampf(base_roughness + pock * 0.5, 0.0, 1.0)))
+	else:
+		img.fill(Color(1.0, 1.0, base_roughness))
 	_paint_markings(img, value, numbering_style, tex_size, Color(0.0, 1.0, 0.92))
 	var tex := ImageTexture.create_from_image(img)
 	_detail_cache[key] = tex
@@ -477,6 +630,13 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory", n
 					col = face.lerp(Color(0.03, 0.03, 0.05), pow(depth, 2.2) * 0.6)
 					var grain := randf() * 0.02 - 0.01
 					col = Color(col.r + grain, col.g + grain, col.b + grain)
+					# bright flecks at the same spots the roughness pass makes
+					# glossy, so the sparkle reads via plain diffuse shading
+					# too -- catches the light a little even off the specular
+					# hotspot, instead of only existing where a highlight lands
+					var pock := _gem_pock(x, y, tex_size)
+					if pock > 0.7:
+						col = col.lerp(Color(1, 1, 1), (pock - 0.7) / 0.3 * 0.55)
 				"metal":
 					# brushed metal: fine directional streaks, low noise
 					var streak := sin(float(x) * 1.3 + float(y) * 0.05) * 0.04
@@ -489,16 +649,25 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory", n
 					# is a ShaderMaterial whose color shifts with view angle and
 					# never samples this texture (see _make_anodized_material)
 					var g := randf() * 0.03 - 0.015
-					col = Color(clampf(0.86 + g, 0, 1), clampf(0.66 + g, 0, 1), clampf(0.14 + g, 0, 1))
+					col = Color(clampf(0.88 + g, 0, 1), clampf(0.60 + g, 0, 1), clampf(0.10 + g, 0, 1))
 				"tigerseye":
 					# chatoyant silk: long wavy diagonal bands (t varies along
-					# u+v, wavers across u-v) through the golden-brown ramp
+					# u+v, wavers across u-v) through the golden-brown ramp.
+					# Each band cycle gets its own pseudo-random thickness and
+					# intensity (hashed from its band index) so they read as
+					# irregular natural fibers instead of a uniform repeat.
 					var u := float(x) / tex_size
 					var v := float(y) / tex_size
 					var wobble := sin((u - v) * 2.2) * 0.28 + sin((u - v) * 5.3) * 0.08
-					var t := clampf(sin(((u + v) * 3.2 + wobble) * PI) * 0.5 + 0.5, 0.0, 1.0)
-					t = pow(t, 1.7)  # skew toward dark so the deep bands dominate
-					col = _tigerseye(t)
+					var raw_phase := (u + v) * 3.2 + wobble
+					var band_index: float = floor(raw_phase / 2.0)
+					var h1 := fposmod(sin(band_index * 12.9898) * 43758.5453, 1.0)
+					var h2 := fposmod(sin(band_index * 78.233 + 4.0) * 12543.231, 1.0)
+					var thickness: float = lerp(1.1, 2.6, h1)  # lower = wider bright band
+					var intensity: float = lerp(0.6, 1.15, h2)  # per-band brightness scale
+					var t := clampf(sin(raw_phase * PI) * 0.5 + 0.5, 0.0, 1.0)
+					t = pow(t, thickness)
+					col = _tigerseye(clampf(t * intensity, 0.0, 1.0))
 					var grain := randf() * 0.02 - 0.01
 					col = Color(col.r + grain, col.g + grain, col.b + grain)
 				"glass":
@@ -545,10 +714,10 @@ static func _tigerseye_flowmap() -> ImageTexture:
 ## t in [0,1]. No pale/beige top stop; dark end is weighted by the caller.
 static func _tigerseye(t: float) -> Color:
 	const STOPS := [
-		Color(0.09, 0.04, 0.01),
-		Color(0.30, 0.16, 0.03),
-		Color(0.60, 0.37, 0.09),
-		Color(0.90, 0.64, 0.20),
+		Color(0.014, 0.009, 0.007),
+		Color(0.14, 0.10, 0.06),
+		Color(0.28, 0.22, 0.14),
+		Color(0.44, 0.37, 0.25),
 	]
 	t = clampf(t, 0.0, 1.0) * (STOPS.size() - 1)
 	var i := int(t)
