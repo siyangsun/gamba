@@ -497,38 +497,41 @@ func _slug(s: String) -> String:
 	return out if has_alnum else "die"
 
 
-# --- theme (Windows 2000 / Chessmaster / Heroes 3: gray, boxy, sharp corners) --
+# --- theme (Windows 2000 / Chessmaster / Heroes 3: sand, boxy, sharp corners) --
 
 func _build_theme() -> Theme:
 	var t := Theme.new()
 	t.default_font_size = 16
 	# body font: warm old-style serif for everything except page titles
 	t.default_font = load("res://fonts/EBGaramond-Regular.ttf")
-	var gray := Color8(196, 196, 200)
-	var dark := Color8(64, 64, 68)
+	var face := Color8(196, 188, 168)
+	var face_hover := Color8(210, 202, 180)
+	var face_pressed := Color8(176, 166, 144)
+	var cream := Color8(250, 246, 236)
 
-	var panel := _flat(gray, dark, 2)
+	var panel := _bevel(face, false, 2)
 	t.set_stylebox("panel", "Panel", panel)
 	t.set_stylebox("panel", "PanelContainer", panel)
 
-	var btn := _flat(Color8(208, 208, 212), dark, 2)
-	t.set_stylebox("normal", "Button", btn)
-	var hov := _flat(Color8(222, 222, 226), dark, 2)
-	t.set_stylebox("hover", "Button", hov)
-	var prs := _flat(Color8(176, 176, 180), dark, 2)
-	t.set_stylebox("pressed", "Button", prs)
+	t.set_stylebox("normal", "Button", _bevel(face, false, 2))
+	t.set_stylebox("hover", "Button", _bevel(face_hover, false, 2))
+	t.set_stylebox("pressed", "Button", _bevel(face_pressed, true, 2))
 	t.set_color("font_color", "Button", Color8(16, 16, 18))
 
-	var le := _flat(Color.WHITE, dark, 2)
-	t.set_stylebox("normal", "LineEdit", le)
-	t.set_stylebox("focus", "LineEdit", _flat(Color.WHITE, Color8(10, 36, 106), 2))
+	t.set_stylebox("normal", "LineEdit", _bevel(cream, true, 2))
+	# focus keeps the sunken field but tints its bevel amber, a warm echo of
+	# the classic Win2k blue focus cue instead of a flat highlight border
+	var le_focus := _bevel(cream, true, 2)
+	le_focus.dark_shadow = Color8(150, 96, 24)
+	le_focus.shadow = Color8(196, 146, 78)
+	t.set_stylebox("focus", "LineEdit", le_focus)
 	t.set_color("font_color", "LineEdit", Color8(16, 16, 18))
 
 	t.set_color("font_color", "Label", Color8(16, 16, 18))
 
-	t.set_stylebox("normal", "OptionButton", btn)
-	t.set_stylebox("hover", "OptionButton", hov)
-	t.set_stylebox("pressed", "OptionButton", prs)
+	t.set_stylebox("normal", "OptionButton", _bevel(face, false, 2))
+	t.set_stylebox("hover", "OptionButton", _bevel(face_hover, false, 2))
+	t.set_stylebox("pressed", "OptionButton", _bevel(face_pressed, true, 2))
 	t.set_color("font_color", "OptionButton", Color8(16, 16, 18))
 	t.set_color("font_color", "PopupMenu", Color8(16, 16, 18))
 
@@ -539,11 +542,10 @@ func _build_theme() -> Theme:
 	return t
 
 
-func _flat(bg: Color, border: Color, bw: int) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
+func _bevel(bg: Color, sunken: bool, width: int) -> BevelStyle:
+	var s := BevelStyle.new()
 	s.bg_color = bg
-	s.set_border_width_all(bw)
-	s.border_color = border
-	s.set_corner_radius_all(0)
+	s.sunken = sunken
+	s.bevel_width = width
 	s.set_content_margin_all(8)
 	return s
