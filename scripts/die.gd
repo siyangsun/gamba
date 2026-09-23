@@ -21,19 +21,30 @@ const FACE_TEX := 128
 # "tigerseye" (opaque golden-brown gem, faces use a view-angle shader with a
 # chatoyant band that sweeps across as the die turns -- see _make_tigerseye_material),
 # "glass" (near-clear, very translucent, smooth; white pips).
+#
+# `category` groups skins into sections in the editor's skin picker (see
+# CATEGORIES for section labels); `label` is the display text shown there.
+# Entries are ordered by category so the picker reads as sectioned already.
+const CATEGORIES := {
+	"classic": "Classic",
+	"mineral": "Stone & Mineral",
+	"gem": "Gemstone",
+	"metal": "Metal",
+}
+
 const SKINS := {
-	"ivory": {"body": Color(0.88, 0.84, 0.73), "face": Color(0.90, 0.86, 0.75), "pip": Color(0.09, 0.08, 0.07), "material": "ivory"},
-	"onyx": {"body": Color(0.12, 0.12, 0.13), "face": Color(0.16, 0.16, 0.17), "pip": Color(0.90, 0.90, 0.92), "material": "gem"},
-	"graphite": {"body": Color(0.26, 0.26, 0.28), "face": Color(0.31, 0.31, 0.33), "pip": Color(0.88, 0.88, 0.90), "material": "stone"},
-	"jasper": {"body": Color(0.50, 0.05, 0.08), "face": Color(0.60, 0.08, 0.11), "pip": Color(0.85, 0.68, 0.25), "material": "gem"},
-	"ruby": {"body": Color(0.16, 0.04, 0.05), "face": Color(0.20, 0.06, 0.07), "pip": Color(0.85, 0.68, 0.25), "material": "darkgem"},
-	"jade": {"body": Color(0.05, 0.35, 0.22), "face": Color(0.08, 0.42, 0.28), "pip": Color(0.95, 0.89, 0.70), "material": "gem"},
-	"gold": {"body": Color(0.60, 0.47, 0.12), "face": Color(0.72, 0.57, 0.16), "pip": Color(0.10, 0.08, 0.04), "material": "anodized"},
-	"tigers_eye": {"body": Color(0.45, 0.27, 0.07), "face": Color(0.75, 0.50, 0.15), "pip": Color(0.98, 0.86, 0.30), "material": "tigerseye"},
-	"lapis": {"body": Color(0.08, 0.15, 0.50), "face": Color(0.10, 0.20, 0.62), "pip": Color(0.85, 0.89, 0.97), "material": "gem"},
-	"sapphire": {"body": Color(0.05, 0.06, 0.17), "face": Color(0.07, 0.08, 0.21), "pip": Color(0.85, 0.89, 0.97), "material": "darkgem"},
-	"acrylic": {"body": Color(0.93, 0.93, 0.95), "face": Color(0.96, 0.96, 0.98), "pip": Color(0.05, 0.05, 0.06), "material": "acrylic"},
-	"glass": {"body": Color(0.80, 0.86, 0.92), "face": Color(0.82, 0.88, 0.94), "pip": Color(1.0, 1.0, 1.0), "material": "glass"},
+	"ivory": {"body": Color(0.88, 0.84, 0.73), "face": Color(0.90, 0.86, 0.75), "pip": Color(0.09, 0.08, 0.07), "material": "ivory", "category": "classic", "label": "Ivory"},
+	"acrylic": {"body": Color(0.93, 0.93, 0.95), "face": Color(0.96, 0.96, 0.98), "pip": Color(0.05, 0.05, 0.06), "material": "acrylic", "category": "classic", "label": "Acrylic"},
+	"glass": {"body": Color(0.80, 0.86, 0.92), "face": Color(0.82, 0.88, 0.94), "pip": Color(1.0, 1.0, 1.0), "material": "glass", "category": "classic", "label": "Glass"},
+	"graphite": {"body": Color(0.26, 0.26, 0.28), "face": Color(0.31, 0.31, 0.33), "pip": Color(0.88, 0.88, 0.90), "material": "stone", "category": "mineral", "label": "Graphite"},
+	"tigers_eye": {"body": Color(0.45, 0.27, 0.07), "face": Color(0.75, 0.50, 0.15), "pip": Color(0.98, 0.86, 0.30), "material": "tigerseye", "category": "mineral", "label": "Tiger's Eye"},
+	"onyx": {"body": Color(0.12, 0.12, 0.13), "face": Color(0.16, 0.16, 0.17), "pip": Color(0.90, 0.90, 0.92), "material": "gem", "category": "gem", "label": "Onyx"},
+	"jasper": {"body": Color(0.50, 0.05, 0.08), "face": Color(0.60, 0.08, 0.11), "pip": Color(0.85, 0.68, 0.25), "material": "gem", "category": "gem", "label": "Jasper"},
+	"ruby": {"body": Color(0.16, 0.04, 0.05), "face": Color(0.20, 0.06, 0.07), "pip": Color(0.85, 0.68, 0.25), "material": "darkgem", "category": "gem", "label": "Ruby"},
+	"jade": {"body": Color(0.05, 0.35, 0.22), "face": Color(0.08, 0.42, 0.28), "pip": Color(0.95, 0.89, 0.70), "material": "gem", "category": "gem", "label": "Jade"},
+	"lapis": {"body": Color(0.08, 0.15, 0.50), "face": Color(0.10, 0.20, 0.62), "pip": Color(0.85, 0.89, 0.97), "material": "gem", "category": "gem", "label": "Lapis Lazuli"},
+	"sapphire": {"body": Color(0.05, 0.06, 0.17), "face": Color(0.07, 0.08, 0.21), "pip": Color(0.85, 0.89, 0.97), "material": "darkgem", "category": "gem", "label": "Sapphire"},
+	"gold": {"body": Color(0.60, 0.47, 0.12), "face": Color(0.72, 0.57, 0.16), "pip": Color(0.10, 0.08, 0.04), "material": "anodized", "category": "metal", "label": "Gold"},
 }
 
 # grid positions (col,row in 0..2) of pips for each face value

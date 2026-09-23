@@ -70,10 +70,22 @@ func _skin_row() -> HBoxContainer:
 	l.text = "Skin"
 	l.custom_minimum_size.x = 90
 	row.add_child(l)
-	_skin_keys = Die.SKINS.keys()
+	# SKINS is pre-ordered by category, so a run of same-category entries
+	# becomes one section; _skin_keys gets a "" placeholder per separator so
+	# its indices still line up with the OptionButton's (separators occupy
+	# a slot but are never selectable).
+	_skin_keys = []
 	_skin_opt = OptionButton.new()
-	for key in _skin_keys:
-		_skin_opt.add_item(String(key).capitalize())
+	var last_category := ""
+	for key in Die.SKINS.keys():
+		var skin: Dictionary = Die.SKINS[key]
+		var category: String = skin.get("category", "")
+		if category != last_category:
+			_skin_opt.add_separator(Die.CATEGORIES.get(category, String(category).capitalize()))
+			_skin_keys.append("")
+			last_category = category
+		_skin_opt.add_item(skin.get("label", String(key).capitalize()))
+		_skin_keys.append(key)
 	_skin_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_skin_opt.item_selected.connect(func(_i): _update_preview())
 	row.add_child(_skin_opt)
