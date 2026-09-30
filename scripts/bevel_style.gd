@@ -12,7 +12,6 @@ extends StyleBox
 @export var shadow: Color = Color8(138, 124, 98)
 @export var dark_shadow: Color = Color8(76, 64, 46)
 @export var sunken: bool = false
-@export var bevel_width: int = 2  # 1 = thin single ring, 2 = classic chunky double ring
 
 
 func _draw(to_canvas_item: RID, rect: Rect2) -> void:
@@ -22,7 +21,7 @@ func _draw(to_canvas_item: RID, rect: Rect2) -> void:
 	var outer_br := highlight if sunken else dark_shadow
 	_ring(to_canvas_item, rect, outer_tl, outer_br)
 
-	if bevel_width >= 2 and rect.size.x > 2 and rect.size.y > 2:
+	if rect.size.x > 2 and rect.size.y > 2:
 		var inner_tl := shadow if sunken else light
 		var inner_br := light if sunken else shadow
 		_ring(to_canvas_item, rect.grow(-1), inner_tl, inner_br)

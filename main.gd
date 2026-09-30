@@ -509,19 +509,19 @@ func _build_theme() -> Theme:
 	var face_pressed := Color8(176, 166, 144)
 	var cream := Color8(250, 246, 236)
 
-	var panel := _bevel(face, false, 2)
+	var panel := _bevel(face, false)
 	t.set_stylebox("panel", "Panel", panel)
 	t.set_stylebox("panel", "PanelContainer", panel)
 
-	t.set_stylebox("normal", "Button", _bevel(face, false, 2))
-	t.set_stylebox("hover", "Button", _bevel(face_hover, false, 2))
-	t.set_stylebox("pressed", "Button", _bevel(face_pressed, true, 2))
+	t.set_stylebox("normal", "Button", _bevel(face, false))
+	t.set_stylebox("hover", "Button", _bevel(face_hover, false))
+	t.set_stylebox("pressed", "Button", _bevel(face_pressed, true))
 	t.set_color("font_color", "Button", Color8(16, 16, 18))
 
-	t.set_stylebox("normal", "LineEdit", _bevel(cream, true, 2))
+	t.set_stylebox("normal", "LineEdit", _bevel(cream, true))
 	# focus keeps the sunken field but tints its bevel amber, a warm echo of
 	# the classic Win2k blue focus cue instead of a flat highlight border
-	var le_focus := _bevel(cream, true, 2)
+	var le_focus := _bevel(cream, true)
 	le_focus.dark_shadow = Color8(150, 96, 24)
 	le_focus.shadow = Color8(196, 146, 78)
 	t.set_stylebox("focus", "LineEdit", le_focus)
@@ -529,9 +529,9 @@ func _build_theme() -> Theme:
 
 	t.set_color("font_color", "Label", Color8(16, 16, 18))
 
-	t.set_stylebox("normal", "OptionButton", _bevel(face, false, 2))
-	t.set_stylebox("hover", "OptionButton", _bevel(face_hover, false, 2))
-	t.set_stylebox("pressed", "OptionButton", _bevel(face_pressed, true, 2))
+	t.set_stylebox("normal", "OptionButton", _bevel(face, false))
+	t.set_stylebox("hover", "OptionButton", _bevel(face_hover, false))
+	t.set_stylebox("pressed", "OptionButton", _bevel(face_pressed, true))
 	t.set_color("font_color", "OptionButton", Color8(16, 16, 18))
 	t.set_color("font_color", "PopupMenu", Color8(16, 16, 18))
 
@@ -542,10 +542,9 @@ func _build_theme() -> Theme:
 	return t
 
 
-func _bevel(bg: Color, sunken: bool, width: int) -> BevelStyle:
+func _bevel(bg: Color, sunken: bool) -> BevelStyle:
 	var s := BevelStyle.new()
 	s.bg_color = bg
 	s.sunken = sunken
-	s.bevel_width = width
 	s.set_content_margin_all(8)
 	return s
