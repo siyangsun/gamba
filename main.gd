@@ -46,6 +46,7 @@ func _ready() -> void:
 	theme = _build_theme()
 	DirAccess.make_dir_recursive_absolute(PRESET_DIR)
 	_setup_audio_buses()
+	_enable_web_motion()
 	_start_music()
 	_build_3d()
 	_build_cupboard()
@@ -228,10 +229,69 @@ func _on_view_input(event: InputEvent) -> void:
 			and event.button_index == MOUSE_BUTTON_LEFT):
 		return
 	if _state == State.ROLL:
-		if _roll.begin_roll():
-			_die.roll()
+		_try_roll()
 	elif _state == State.SHELF:
 		_handle_shelf_click(event.position)
+
+
+func _try_roll() -> void:
+	if _roll.begin_roll():
+		_die.roll()
+
+
+# --- shake to roll ----------------------------------------------------------
+
+const SHAKE_ACCEL := 25.0  # m/s^2 incl. gravity (~2.5g): a deliberate shake, not a jostle
+const SHAKE_COOLDOWN := 1.0  # one shake gesture spikes many frames; count it once
+var _last_shake := -INF
+
+
+func _process(_delta: float) -> void:
+	if _state == State.ROLL and _shaken():
+		_try_roll()
+
+
+func _shaken() -> bool:
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _last_shake < SHAKE_COOLDOWN:
+		return false
+	var hit := false
+	if OS.has_feature("web"):
+		# set by the devicemotion listener from _enable_web_motion
+		hit = JavaScriptBridge.eval(
+			"window.gambaShake ? (window.gambaShake = false, true) : false") == true
+	else:
+		hit = Input.get_accelerometer().length() > SHAKE_ACCEL
+	if hit:
+		_last_shake = now
+	return hit
+
+
+## iOS Safari only grants motion access from inside a real tap handler, and
+## Godot handles input a frame later (outside it), so the permission ask is
+## hooked straight onto the page's first touch instead.
+func _enable_web_motion() -> void:
+	if not OS.has_feature("web"):
+		return
+	JavaScriptBridge.eval("""
+(function () {
+	function listen() {
+		window.addEventListener('devicemotion', function (e) {
+			var a = e.accelerationIncludingGravity;
+			if (a && Math.hypot(a.x || 0, a.y || 0, a.z || 0) > %f) window.gambaShake = true;
+		});
+	}
+	var D = window.DeviceMotionEvent;
+	if (!D || typeof D.requestPermission !== 'function') { listen(); return; }
+	function ask() {
+		window.removeEventListener('touchend', ask, true);
+		window.removeEventListener('click', ask, true);
+		D.requestPermission().then(function (s) { if (s === 'granted') listen(); }, function () {});
+	}
+	window.addEventListener('touchend', ask, true);
+	window.addEventListener('click', ask, true);
+})();
+""" % SHAKE_ACCEL)
 
 
 ## Raycasts into the cupboard scene to find which die (if any) was clicked.

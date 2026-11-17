@@ -928,6 +928,7 @@ func _on_contact(_body: Node) -> void:
 	else:
 		_hit_player.stream = load("res://assets/audio/fx/hit%d.mp3" % (randi() % HIT_SOUNDS + 1))
 		_hit_player.play()  # tumble follows via the finished signal
+		Input.vibrate_handheld(30)  # no-op on desktop and iOS Safari
 
 
 func _play_tumble() -> void:

@@ -86,7 +86,8 @@ func _ready() -> void:
 func set_preset(p: DicePreset) -> void:
 	_preset = p
 	_title.text = p.name
-	_hint.text = "Click the die to roll." + (" No rerolls." if p.single_roll else "")
+	_hint.text = ("Tap or shake to roll." if DisplayServer.is_touchscreen_available()
+		else "Click the die to roll.") + (" No rerolls." if p.single_roll else "")
 	_rolled = false
 	clear_result()
 	for c in _legend.get_children():
