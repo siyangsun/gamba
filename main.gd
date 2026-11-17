@@ -228,8 +228,8 @@ func _on_view_input(event: InputEvent) -> void:
 			and event.button_index == MOUSE_BUTTON_LEFT):
 		return
 	if _state == State.ROLL:
-		_roll.clear_result()
-		_die.roll()
+		if _roll.begin_roll():
+			_die.roll()
 	elif _state == State.SHELF:
 		_handle_shelf_click(event.position)
 

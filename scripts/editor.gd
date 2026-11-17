@@ -13,6 +13,7 @@ var _skin_keys: Array = []
 var _numbering_opt: OptionButton
 var _numbering_keys: Array = []
 var _preview: TextureRect
+var _single_roll: CheckBox
 
 
 func _ready() -> void:
@@ -49,6 +50,10 @@ func _ready() -> void:
 
 	vb.add_child(_skin_row())
 	vb.add_child(_numbering_row())
+
+	_single_roll = CheckBox.new()
+	_single_roll.text = "No rerolls (one roll per visit)"
+	vb.add_child(_single_roll)
 
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 8)
@@ -149,6 +154,7 @@ func load_preset(p: DicePreset) -> void:
 	_skin_opt.select(si if si >= 0 else 0)
 	var ni := _numbering_keys.find(p.numbering)
 	_numbering_opt.select(ni if ni >= 0 else 0)
+	_single_roll.button_pressed = p.single_roll
 	_update_preview()
 
 
@@ -162,4 +168,5 @@ func _on_save() -> void:
 	p.faces = arr
 	p.theme = _current_skin()
 	p.numbering = _current_numbering()
+	p.single_roll = _single_roll.button_pressed
 	saved.emit(p)

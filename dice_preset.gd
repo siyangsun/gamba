@@ -8,3 +8,5 @@ class_name DicePreset
 @export var faces: Array[String] = ["", "", "", "", "", ""]
 @export var theme: String = "ivory"
 @export var numbering: String = "dots"
+## No rerolls: one roll per visit to this die from the shelf.
+@export var single_roll: bool = false

@@ -12,6 +12,8 @@ var _preset: DicePreset
 var _title: Label
 var _result: Label
 var _legend: VBoxContainer
+var _hint: Label
+var _rolled := false  # this visit; reset whenever a die is opened
 
 
 func _ready() -> void:
@@ -50,9 +52,9 @@ func _ready() -> void:
 	_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(_title)
 
-	var hint := Label.new()
-	hint.text = "Click the die to roll."
-	vb.add_child(hint)
+	_hint = Label.new()
+	_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(_hint)
 
 	_result = Label.new()
 	_result.add_theme_font_size_override("font_size", 20)
@@ -84,6 +86,8 @@ func _ready() -> void:
 func set_preset(p: DicePreset) -> void:
 	_preset = p
 	_title.text = p.name
+	_hint.text = "Click the die to roll." + (" No rerolls." if p.single_roll else "")
+	_rolled = false
 	clear_result()
 	for c in _legend.get_children():
 		c.queue_free()
@@ -104,12 +108,23 @@ func _confirm_delete() -> void:
 	dlg.popup_centered()
 
 
+## False when this die allows no rerolls and has already been rolled this visit.
+func begin_roll() -> bool:
+	if _preset.single_roll and _rolled:
+		return false
+	_rolled = true
+	clear_result()
+	return true
+
+
 func clear_result() -> void:
 	_result.text = "Roll the die…"
 
 
 func show_result(value: int) -> void:
 	_result.text = "Result: %d\n%s" % [value, _face_text(value)]
+	if _preset.single_roll:
+		_hint.text = "No rerolls. Back to the shelf to roll again."
 
 
 func _face_text(value: int) -> String:
