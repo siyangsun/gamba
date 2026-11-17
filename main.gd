@@ -144,6 +144,18 @@ func _build_3d() -> void:
 	_env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	_env.ambient_light_color = Color(0.7, 0.7, 0.7)
 	_env.ambient_light_energy = 0.6
+	# reflections only: background stays the flat color above, but glossy
+	# skins (metal, gems, glass, clearcoat) finally have something to mirror
+	# instead of rendering flat away from the one light's hotspot
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = Color(0.62, 0.64, 0.68)
+	sky_mat.sky_horizon_color = Color(0.85, 0.84, 0.80)
+	sky_mat.ground_horizon_color = Color(0.40, 0.36, 0.30)
+	sky_mat.ground_bottom_color = Color(0.12, 0.10, 0.08)
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
+	_env.sky = sky
+	_env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	we.environment = _env
 	_world.add_child(we)
 

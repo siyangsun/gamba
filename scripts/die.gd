@@ -239,8 +239,8 @@ static func _anodized_shader() -> Shader:
 # is near-uniform across a face -> one flat color at a time that changes as the
 # die turns. detail_tex.r is the marking mask (0 on markings), .b is roughness.
 const ANODIZED_SHADER := "shader_type spatial;
-uniform sampler2D detail_tex : filter_linear;
-uniform sampler2D normal_tex : hint_normal;
+uniform sampler2D detail_tex : filter_linear_mipmap;
+uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap;
 uniform vec3 pip_color = vec3(0.1, 0.08, 0.04);
 uniform bool has_markings = false;
 uniform float angle_gamma = 0.8; // <1 spreads more of the ramp into view
@@ -351,9 +351,9 @@ static func _tigerseye_shader() -> Shader:
 
 
 const TIGERSEYE_SHADER := "shader_type spatial;
-uniform sampler2D albedo_tex : source_color, filter_linear;
-uniform sampler2D detail_tex : filter_linear;
-uniform sampler2D normal_tex : hint_normal;
+uniform sampler2D albedo_tex : source_color, filter_linear_mipmap;
+uniform sampler2D detail_tex : filter_linear_mipmap;
+uniform sampler2D normal_tex : hint_normal, filter_linear_mipmap;
 uniform vec3 pip_color = vec3(0.98, 0.86, 0.30);
 uniform vec3 glow_color = vec3(1.0, 0.83, 0.38);
 uniform vec3 accent_color = vec3(1.0, 0.95, 0.25); // dazzling yellow, not amber/orange
@@ -583,6 +583,7 @@ static func make_face_detail_texture(value: int, tex_size: int, base_roughness: 
 	else:
 		img.fill(Color(1.0, 1.0, base_roughness))
 	_paint_markings(img, value, numbering_style, tex_size, Color(0.0, 1.0, 0.92))
+	img.generate_mipmaps()  # small shelf dice shimmer without them
 	var tex := ImageTexture.create_from_image(img)
 	_detail_cache[key] = tex
 	return tex
@@ -784,6 +785,7 @@ static func make_face_texture(value: int, tex_size: int, skin_name := "ivory", n
 		# faceted gem look.
 		_draw_cracks(tex_size, img, 2 + (randi() % 2))
 	_paint_markings(img, value, numbering_style, tex_size, skin.pip)
+	img.generate_mipmaps()
 	var tex := ImageTexture.create_from_image(img)
 	_albedo_cache[key] = tex
 	return tex
@@ -848,6 +850,7 @@ static func make_face_normalmap(value: int, tex_size: int, numbering_style := "d
 	var img := Image.create(tex_size, tex_size, false, Image.FORMAT_RGB8)
 	img.fill(Color(0.5, 0.5, 1.0))  # flat surface
 	if numbering_style != "dots":
+		img.generate_mipmaps()
 		var flat := ImageTexture.create_from_image(img)
 		_normal_cache[key] = flat
 		return flat
@@ -862,14 +865,16 @@ static func make_face_normalmap(value: int, tex_size: int, numbering_style := "d
 		var x1 := mini(tex_size, int(cx + radius + 2))
 		for y in range(y0, y1):
 			for x in range(x0, x1):
-				var d := Vector2(x - cx, y - cy)
-				if d.length() > radius:
+				var d := Vector2(x + 0.5 - cx, y + 0.5 - cy)
+				var cover := _coverage(d.length(), radius)
+				if cover <= 0.0:
 					continue
 				# concave: horizontal normal points toward the center.
 				# green flipped for Godot's OpenGL (Y-up) normal convention.
 				var n := Vector3(-d.x / radius, d.y / radius, depth).normalized()
-				img.set_pixel(x, y, Color(
-					n.x * 0.5 + 0.5, n.y * 0.5 + 0.5, n.z * 0.5 + 0.5))
+				img.set_pixel(x, y, Color(0.5, 0.5, 1.0).lerp(Color(
+					n.x * 0.5 + 0.5, n.y * 0.5 + 0.5, n.z * 0.5 + 0.5), cover))
+	img.generate_mipmaps(true)  # renormalize: averaged normals shrink otherwise
 	var tex := ImageTexture.create_from_image(img)
 	_normal_cache[key] = tex
 	return tex
@@ -882,8 +887,15 @@ static func _fill_circle(tex_size: int, img: Image, cx: float, cy: float, r: flo
 	var x1 := mini(tex_size, int(cx + r + 2))
 	for y in range(y0, y1):
 		for x in range(x0, x1):
-			if Vector2(x - cx, y - cy).length() <= r:
-				img.set_pixel(x, y, col)
+			var cover := _coverage(Vector2(x + 0.5 - cx, y + 0.5 - cy).length(), r)
+			if cover > 0.0:
+				img.set_pixel(x, y, img.get_pixel(x, y).lerp(col, cover))
+
+
+## How much of a pixel (at `dist` from a circle's center) the circle covers:
+## a 1px linear ramp at the rim, so pip edges are antialiased, not stair-stepped.
+static func _coverage(dist: float, r: float) -> float:
+	return clampf(r + 0.5 - dist, 0.0, 1.0)
 
 
 func roll() -> void:
