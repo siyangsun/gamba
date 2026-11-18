@@ -914,6 +914,15 @@ func roll() -> void:
 	_timeout = 0.0
 
 
+## Wakes a settled die (the table tilted under it) and re-reads its face
+## once it stops again.
+func nudge() -> void:
+	sleeping = false
+	_rolling = true
+	_settle = 0.0
+	_timeout = 0.0
+
+
 func _physics_process(delta: float) -> void:
 	if not _rolling:
 		return

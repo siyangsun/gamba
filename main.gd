@@ -259,6 +259,7 @@ var _last_shake := -INF
 
 
 func _process(_delta: float) -> void:
+	_apply_tilt()
 	if _state == State.ROLL and _shaken():
 		_try_roll()
 
@@ -279,6 +280,42 @@ func _shaken() -> bool:
 	return hit
 
 
+# --- tilt the table -----------------------------------------------------------
+
+# calibration knob: scales phone tilt into table tilt. Negative if the die
+# slides uphill on some device (sensor sign conventions vary by platform).
+const TILT_STRENGTH := 1.0
+const TILT_WAKE := 2.0  # m/s^2 of tilt change (~12 deg) that disturbs a settled die
+var _tilt_rest := Vector2.ZERO  # tilt when the die last settled
+
+
+## Steers arena gravity by how the phone is held, so the die slides when
+## you tilt it. A settled die is only disturbed (and its result re-read)
+## once it's been rolled, and never on a no-reroll die.
+func _apply_tilt() -> void:
+	var t := _device_tilt() if _state == State.ROLL else Vector2.ZERO
+	# screen-right is world +x; screen-top is world -z (the camera looks down -z)
+	var dir := Vector3(t.x * TILT_STRENGTH, -9.8, -t.y * TILT_STRENGTH).normalized()
+	PhysicsServer3D.area_set_param(_world.get_world_3d().space,
+		PhysicsServer3D.AREA_PARAM_GRAVITY_VECTOR, dir)
+	if not _die.sleeping:
+		_tilt_rest = t
+	elif (t - _tilt_rest).length() > TILT_WAKE and _roll.can_nudge():
+		_tilt_rest = t
+		_die.nudge()
+
+
+## Gravity's pull along the screen (x right, y toward the top edge), m/s^2.
+## Zero on desktop. Sensors report the reaction to gravity, hence the negation.
+func _device_tilt() -> Vector2:
+	if OS.has_feature("web"):
+		# set by the devicemotion listener from _enable_web_motion
+		return Vector2(float(JavaScriptBridge.eval("window.gambaTiltX || 0")),
+			float(JavaScriptBridge.eval("window.gambaTiltY || 0")))
+	var g := Input.get_gravity()
+	return Vector2(-g.x, -g.y)
+
+
 ## iOS Safari only grants motion access from inside a real tap handler, and
 ## Godot handles input a frame later (outside it), so the permission ask is
 ## hooked straight onto the page's first touch instead.
@@ -290,7 +327,14 @@ func _enable_web_motion() -> void:
 	function listen() {
 		window.addEventListener('devicemotion', function (e) {
 			var a = e.accelerationIncludingGravity;
-			if (a && Math.hypot(a.x || 0, a.y || 0, a.z || 0) > %f) window.gambaShake = true;
+			if (!a) return;
+			if (Math.hypot(a.x || 0, a.y || 0, a.z || 0) > %f) window.gambaShake = true;
+			// device axes -> screen axes (landscape rotates them), negated
+			// because the sensor reports the reaction to gravity
+			var ang = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * Math.PI / 180;
+			var dx = -(a.x || 0), dy = -(a.y || 0);
+			window.gambaTiltX = dx * Math.cos(ang) - dy * Math.sin(ang);
+			window.gambaTiltY = dx * Math.sin(ang) + dy * Math.cos(ang);
 		});
 	}
 	var D = window.DeviceMotionEvent;

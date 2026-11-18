@@ -118,6 +118,11 @@ func begin_roll() -> bool:
 	return true
 
 
+## Tilting may disturb the settled die only after a roll, and never a locked one.
+func can_nudge() -> bool:
+	return _rolled and not _preset.single_roll
+
+
 func clear_result() -> void:
 	_result.text = "Roll the die…"
 
