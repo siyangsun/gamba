@@ -125,7 +125,7 @@ func clear_result() -> void:
 func show_result(value: int) -> void:
 	_result.text = "Result: %d\n%s" % [value, _face_text(value)]
 	if _preset.single_roll:
-		_hint.text = "No rerolls. Back to the shelf to roll again."
+		_hint.text = "This result's locked. Need to go back to the shelf to roll again."
 
 
 func _face_text(value: int) -> String:
